@@ -1,0 +1,170 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @unique
+  data       Json
+  store      Store?     @relation("UserStore")
+  createdAt  DateTime   @default(now())
+  items      Item[]
+  categories Category[]
+}
+
+model Store {
+  id        String     @id @default(uuid())
+  name      String
+  ownerId   String     @unique
+  owner     User       @relation("UserStore", fields: [ownerId], references: [id])
+  locations Location[]
+  menus     Menu[]
+  settings  Json // Contains settings divided into categories
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Location {
+  id        String   @id @default(uuid())
+  address   String
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  menus     Menu[]   @relation("MenuLocations")
+  openHours Json // JSON object for open hours (e.g., Monday-Sunday)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Menu {
+  id           String     @id @default(uuid())
+  name         String
+  storeId      String
+  store        Store      @relation(fields: [storeId], references: [id])
+  locations    Location[] @relation("MenuLocations")
+  isAvailable  Boolean    @default(true) // Overall availability
+  availability Json // JSON for availability settings (e.g., Sunday-Saturday)
+  categories   Category[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  description  String
+  menuId       String?
+  menu         Menu?    @relation(fields: [menuId], references: [id])
+  items        Item[]   @relation("CategoryItems")
+  isAvailable  Boolean? @default(true) // Simple availability flag
+  availability Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String // Now required
+  user         User     @relation(fields: [userId], references: [id]) // Now required
+}
+
+model Item {
+  id             String          @id @default(uuid())
+  name           String
+  imageUrl       String
+  displayName    String
+  description    String
+  price          Float
+  options        String?
+  allergens      String?
+  categoryId     String?
+  categories     Category[]      @relation("CategoryItems")
+  isAvailable    Boolean?        @default(true) // Simple availability flag
+  availability   Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  modifierGroups ModifierGroup[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  userId         String // Add this field
+  user           User            @relation(fields: [userId], references: [id]) // Add this relation
+}
+
+model ModifierGroup {
+  id           String     @id @default(uuid())
+  name         String
+  minSelect    Int
+  maxSelect    Int
+  itemId       String
+  item         Item       @relation(fields: [itemId], references: [id])
+  modifiers    Modifier[]
+  isAvailable  Boolean    @default(true) // Simple availability flag
+  availability Json // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Modifier {
+  id              String        @id @default(uuid())
+  name            String
+  price           Float
+  imageUrl        String?
+  displayName     String?
+  description     String?
+  minSelect       Int?
+  maxSelect       Int?
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id])
+  isAvailable     Boolean       @default(true) // Simple availability flag
+  availability    Json // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum ItemOptions {
+  ALCOHOLIC
+  GLUTEN_FREE
+  VEGETARIAN
+}
+
+enum ItemAllergens {
+  DAIRY
+  EGGS
+  FISH
+  GLUTEN
+  PEANUTS
+  SOY
+  TREE_NUTS
+}
+
+//sample settings
+// {
+//   "generalSettings": {
+//     "brandName": "My Restaurant",
+//     "brandLinks": {
+//       "website": "https://myrestaurant.com",
+//       "facebook": "https://facebook.com/myrestaurant",
+//       "instagram": "https://instagram.com/myrestaurant"
+//     },
+//     "timezone": "America/New_York",
+//     "salesTax": 8.5
+//   },
+//   "locationSettings": [
+//     {
+//       "locationId": "location-id-1",
+//       "openHours": {
+//         "monday": { "open": "08:00", "close": "18:00" },
+//         "tuesday": { "open": "08:00", "close": "18:00" }
+//       }
+//     }
+//   ],
+//   "contactSettings": {
+//     "email": "contact@myrestaurant.com",
+//     "phone": "+1234567890"
+//   },
+//   "fulfillmentSettings": {
+//     "preparationTimeMins": 15,
+//     "largeOrderThreshold": 10,
+//     "largeOrderPrepTimeMins": 30
+//   }
+// }
