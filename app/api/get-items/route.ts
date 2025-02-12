@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
     // If not in cache, query database
     const items = await prisma.item.findMany({
       where: { userId: userId },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      include:{modifierGroups: true }
     });
 
     // Cache the result with TTL
@@ -47,6 +48,8 @@ export async function POST(req: NextRequest) {
       console.error('Failed to cache data:', redisError);
     }
 
+    console.log(items)
+    
     return new Response(JSON.stringify(items), { 
       status: 200,
       headers: { 'Content-Type': 'application/json' }

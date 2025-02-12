@@ -25,6 +25,11 @@ import { Textarea } from "../ui/textarea";
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import * as Bytescale from "@bytescale/sdk";
+import { MousePointerClick, XIcon } from "lucide-react";
+import { SelectModifierGroupsTable } from "../ModifierGroupsManager/selectModifierGroupsTable";
+import { ModifierGroup } from "@prisma/client";
+import { getModifierGroups } from "../ModifierGroupsManager/modifierGroupsManager";
+import { toast } from "@/hooks/use-toast";
 
 const allergensEnum = z.enum([
   "DAIRY",
@@ -83,6 +88,9 @@ export function ItemsForm({
 }) {
   const { user } = useUser();
   const [imageUrl, setImageUrl] = useState("");
+  const [selectingItems, setSelectingItems] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<ModifierGroup[]>([]);
+  const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -122,6 +130,7 @@ export function ItemsForm({
         ...values,
         imageUrl: imageUrl,
         allergens: values.allergens,
+        modifierGroups: modifierGroups,
       });
 
       onSubmitSuccess();
@@ -135,6 +144,24 @@ export function ItemsForm({
     } catch (error) {}
   }
 
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (user?.id) {
+        try {
+          const items = await getModifierGroups(user.id);
+          setModifierGroups(items);
+          console.log("items", items);
+        } catch (error) {
+          toast({
+            title: "Failed to load items",
+            variant: "destructive",
+          });
+        } finally {
+        }
+      }
+    };
+    fetchItems();
+  }, [user?.id]);
   return (
     <Dialog
       open={isDialogOpen}
@@ -146,7 +173,7 @@ export function ItemsForm({
     >
       <DialogTrigger asChild>
         <Button variant="default" className="ml-20 min w-30 mb-2">
-          Create item
+          Create Item
         </Button>
       </DialogTrigger>
       <DialogContent className="h-5/6 overflow-scroll mb-20 rounded-md flex flex-col space-y-5 justify-items-start">
@@ -154,7 +181,9 @@ export function ItemsForm({
           <DialogTitle className="mt-4">Create New Item</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form
+          //  onSubmit={form.handleSubmit(onSubmit)} 
+           className="space-y-8">
             {/* Picture Upload */}
 
             <FormField
@@ -264,6 +293,96 @@ export function ItemsForm({
               )}
             />
 
+            {/* Modifier Groups */}
+            <div className="border-slate-200 border-1 border-y py-8 ">
+              <h3 className="font-medium mb-2">Modifier Groups</h3>
+              <p className="text-gray-400 text-sm mb-2">
+                Modifiers allow customers to customize an item. You might have a
+                modifier group like "toppings".
+              </p>
+
+              <Dialog
+                open={selectingItems}
+                onOpenChange={() => setSelectingItems((prev) => !prev)}
+              >
+                <DialogTrigger>
+                  <Button
+                    variant={"default"}
+                    className="w-full"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSelectingItems((prev) => !prev)
+                    }}
+                  >
+                    Select Modifier Groups <MousePointerClick />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-full h-fit overflow-scroll">
+                  <DialogHeader>
+                    <DialogTitle>Select Modifier Groups</DialogTitle>
+                  </DialogHeader>
+                  <div className="">
+                    <SelectModifierGroupsTable
+                      data={modifierGroups}
+                      selectedItems={selectedItems}
+                      onSelectionChange={setSelectedItems}
+                    />
+                  </div>
+                  <div className="flex flex-row justify-evenly">
+                    <Button
+                      className="min-w-32"
+                      variant={"outline"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSelectingItems(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="min-w-32"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSelectingItems(false);
+                      }}
+                    >
+                      Add Items
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              {!selectedItems.length && (
+                <div className="outline flex rounded-md h-20 mt-4 outline-slate-200 outline-1 flex-row items-center justify-between">
+                  <p className="font-light text-sm my-3 mx-5">
+                    No modifiers selected yet.
+                  </p>
+                </div>
+              )}
+              {selectedItems.map((item) => (
+                <div className="outline flex  rounded-md h-20 mt-4 outline-slate-200 outline-1 flex-row items-center justify-between">
+                  <div className="flex flex-row items-center space-x-4 mx-5">
+                    <p className="text-sm leading-none ">{item.name}</p>
+                  </div>
+                  <div className="flex flex-row items-center space-x-4 mx-5">
+                    {/* Add leading-none */}
+                    <Button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSelectedItems((prev) =>
+                          prev.filter((i) => i.id !== item.id)
+                        );
+                      }}
+                      className="h-6 w-6 p-1 ml-2" // Increased size and added padding
+                      variant="outline"
+                    >
+                      <XIcon className="h-4 w-4" />
+                      {/* Set explicit icon size */}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Options Section */}
             <div className="space-y-4">
               <h3 className="font-medium">Options</h3>
@@ -353,7 +472,7 @@ export function ItemsForm({
                       </div>
                       <FormControl>
                         <Switch
-                          checked={field.value? true: false}
+                          checked={field.value ? true : false}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
@@ -363,7 +482,14 @@ export function ItemsForm({
               ))}
             </div>
 
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full"
+             onClick={(e)=>{
+               e.preventDefault();
+               onSubmit(form.getValues())
+               setSelectedItems([])
+               setSelectingItems(false)
+               setIsDialogOpen(false)
+             }}>
               Create Item
             </Button>
           </form>

@@ -7,6 +7,7 @@ import { BANNER, MENU } from "@/constants";
 import banner from "@/images/banner-img.png";
 import { ChevronRight, TextQuote } from "lucide-react";
 import { useEffect, useState } from "react";
+import Error from "next/error";
 
 export default function Home() {
   const allItems = Object.values(MENU.categories).flat();
@@ -24,7 +25,7 @@ export default function Home() {
         console.log(refreshedCompany);
 
         setData(refreshedCompany);
-      } catch (err) {
+      } catch (err: any) {
         setError(err.message);
       } finally {
         setLoading(false);

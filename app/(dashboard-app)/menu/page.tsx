@@ -38,8 +38,9 @@ import { Input } from "@/components/ui/input";
 import { PrismaClient } from "@prisma/client";
 import { ItemsManager } from "@/components/ItemsManager/itemsManager";
 import { CategoryManager } from "@/components/CategoriesManager/categoryManager ";
+import { ModifiersManager } from "@/components/ModifiersManager/modifiersManager";
+import { ModifierGroupsManager } from "@/components/ModifierGroupsManager/modifierGroupsManager";
 
-const prisma = new PrismaClient();
 // use `prisma` in your application to read and write data in your DB
 
 export default function MenuPage() {
@@ -89,11 +90,7 @@ export default function MenuPage() {
   );
 }
 
-export function CreateItem() {
-  return <div>page</div>;
-}
-
-export function MenuManager() {
+const MenuManager = () =>{
   return (
     <div>
       <Card className="w-full">
@@ -131,40 +128,40 @@ export function MenuManager() {
 //   );
 // }
 
-export function ModifierGroupsManager() {
-  return (
-    <div>
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Modifier Groups</CardTitle>
-          <CardDescription>
-            Make changes to your account here. Click save when you're done.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2"></CardContent>
-        <CardFooter>
-          <Button>Save changes</Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
-}
+// export function ModifierGroupsManager() {
+//   return (
+//     <div>
+//       <Card className="w-full">
+//         <CardHeader>
+//           <CardTitle>Modifier Groups</CardTitle>
+//           <CardDescription>
+//             Make changes to your account here. Click save when you're done.
+//           </CardDescription>
+//         </CardHeader>
+//         <CardContent className="space-y-2"></CardContent>
+//         <CardFooter>
+//           <Button>Save changes</Button>
+//         </CardFooter>
+//       </Card>
+//     </div>
+//   );
+// }
 
-export function ModifiersManager() {
-  return (
-    <div>
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Modifiers</CardTitle>
-          <CardDescription>
-            Make changes to your account here. Click save when you're done.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2"></CardContent>
-        <CardFooter>
-          <Button>Save changes</Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
-}
+// export function ModifiersManager() {
+//   return (
+//     <div>
+//       <Card className="w-full">
+//         <CardHeader>
+//           <CardTitle>Modifiers</CardTitle>
+//           <CardDescription>
+//             Make changes to your account here. Click save when you're done.
+//           </CardDescription>
+//         </CardHeader>
+//         <CardContent className="space-y-2"></CardContent>
+//         <CardFooter>
+//           <Button>Save changes</Button>
+//         </CardFooter>
+//       </Card>
+//     </div>
+//   );
+// }

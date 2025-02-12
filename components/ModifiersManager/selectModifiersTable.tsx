@@ -25,19 +25,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useUser } from "@clerk/nextjs";
-import { Item } from "@prisma/client";
+import { Item, Modifier } from "@prisma/client";
 
-export function SelectItemsTable({
+export function SelectModifiersTable({
   data,
   selectedItems, // NEW OPTIONAL PROP
   onSelectionChange,
 
 }: {
-  data: Item[];
-  selectedItems?: Item[]; // NEW OPTIONAL PROP
-  onSelectionChange?: (selectedItems: Item[]) => void;
+  data: Modifier[];
+  selectedItems?: Modifier[]; // NEW OPTIONAL PROP
+  onSelectionChange?: (selectedItems: Modifier[]) => void;
 }) {
-
+  
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -51,7 +51,7 @@ export function SelectItemsTable({
     }, {} as Record<string, boolean>);
   });
 
-  const columns: ColumnDef<Item>[] = [
+  const columns: ColumnDef<Modifier>[] = [
     {
       id: "select",
       header: ({ table }) => (

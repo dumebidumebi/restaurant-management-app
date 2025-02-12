@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import Header from "@/components/Header";
 import Script from "next/script";
@@ -18,29 +18,30 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <>
       {/* <Header/> */}
       <ClerkProvider>
-      <html lang="en">
-        <head>
-          <Script src="http://localhost:3000"></Script>
-        </head>
-        <body className={inter.className}>
-          {/* <HeaderWeb /> */}
-          <SidebarProvider>
-            <AppSidebar />
-            <main className="w-full">
+        <html lang="en">
+          <head>
+            <Script src="http://localhost:3000"></Script>
+          </head>
+          <body className={inter.className}>
+            {/* <HeaderWeb /> */}
+            <SidebarProvider>
+              <AppSidebar />
               <SidebarTrigger />
-              <Toaster />
-              {children}
-            </main>
-          </SidebarProvider>
-        </body>
-      </html>
+
+              <main className="w-full">
+                <Toaster />
+                {children}
+              </main>
+            </SidebarProvider>
+          </body>
+        </html>
       </ClerkProvider>
     </>
   );

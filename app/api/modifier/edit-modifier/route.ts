@@ -1,14 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
-import { Item } from "@prisma/client";
+import { Item, Modifier } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { userId } = getAuth(req);
-    const data = body.data;
+    const data : Modifier = body.data;
 
     console.log(data);
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Cache invalidation logic
-    const cacheKey = `categories:${userId}`;
+    const cacheKey = `modifiers:${userId}`;
     try {
       await redis.del(cacheKey);
       console.log(`Cache invalidated for ${cacheKey}`);
@@ -30,27 +30,38 @@ export async function POST(req: NextRequest) {
       console.error("Failed to invalidate cache:", redisError);
     }
 
-
     // Create the new item
     // Create the new category with item connections
-    await prisma.category.update({
+    await prisma.modifier.update({
       where: {
-        id: data.id, // You need to get the item ID from somewhere
-        userId: userId, // Ensures users can only update their own items
+        id: data.id,
+        userId: userId, // Ensures user owns the modifier
       },
       data: {
-        userId: userId,
         name: data.name,
+        displayName: data.displayName,
         description: data.description,
+        price: data.price,
+        imageUrl: data.imageUrl !== '' ? data.imageUrl : null,
         isAvailable: data.isAvailable,
-        items: {
-          set: data.items?.map((id: string) => ({ id })) || [],
-        },
-      },
-      include: {
-        items: true, // Include connected items in the response
-      },
+      }
     });
+
+
+    // const newModifier = await prisma.modifier.create({
+    //   data: {
+    //     userId: userId,
+    //     name: data.displayName,        // Required field mapped from displayName
+    //     displayName: data.displayName, // Optional display name
+    //     description: data.description,
+    //     price: data.price,
+    //     imageUrl: data.imageUrl,
+    //     isAvailable: true,             // Explicitly set availability
+    //     // minSelect/maxSelect omitted since not in sample data
+    //     // availability omitted since not in sample data
+    //   },
+    // });
+
 
     return new Response(JSON.stringify({ response: "ok" }), {
       status: 201,

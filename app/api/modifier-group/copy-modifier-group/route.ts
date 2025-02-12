@@ -1,16 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
-import { Item } from "@prisma/client";
+import { Item, Modifier } from "@prisma/client";
 import { NextRequest } from "next/server";
+
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { userId } = getAuth(req);
     const data = body.data;
-
-    console.log(data);
 
     if (!userId || !data) {
       return new Response(
@@ -22,37 +21,37 @@ export async function POST(req: NextRequest) {
     }
 
     // Cache invalidation logic
-    const cacheKey = `categories:${userId}`;
+    const cacheKey = `modifier-groups:${userId}`;
     try {
       await redis.del(cacheKey);
       console.log(`Cache invalidated for ${cacheKey}`);
     } catch (redisError) {
       console.error("Failed to invalidate cache:", redisError);
     }
-
-
+    
+    console.log(data);
     // Create the new item
-    // Create the new category with item connections
-    await prisma.category.update({
-      where: {
-        id: data.id, // You need to get the item ID from somewhere
-        userId: userId, // Ensures users can only update their own items
-      },
-      data: {
-        userId: userId,
-        name: data.name,
-        description: data.description,
-        isAvailable: data.isAvailable,
-        items: {
-          set: data.items?.map((id: string) => ({ id })) || [],
-        },
-      },
-      include: {
-        items: true, // Include connected items in the response
-      },
-    });
+  // Create the new category with item connections
 
-    return new Response(JSON.stringify({ response: "ok" }), {
+  const  arr : Modifier[] = data.modifiers
+  const arrayOfModifierIds  =  arr?.map(item => ( item.id )) 
+ 
+  // Create the new category with item connections
+  const newModifier = await prisma.modifierGroup.create({
+    data: {
+      userId: userId,
+      name: data.name,        // Required field mapped from displayName 
+      minSelect: data. minSelect,
+      maxSelect: data.maxSelect,
+      modifiers: arrayOfModifierIds.length ? { connect: arrayOfModifierIds?.map((id: string) => ({ id })) }: undefined, 
+      isAvailable: true,             // Explicitly set availability
+      // minSelect/maxSelect omitted since not in sample data
+      // availability omitted since not in sample data
+    },
+  });
+
+
+    return new Response(JSON.stringify(newModifier), {
       status: 201,
       headers: {
         "Content-Type": "application/json",

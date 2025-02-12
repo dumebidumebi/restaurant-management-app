@@ -79,109 +79,6 @@ export function CreateCategoryForm({
     }
   }
 
-  const handleSubmitSuccess = async () => {
-    try {
-      if (!user?.id) return;
-      const updatedItems = await getItems(user.id);
-      setItems(updatedItems);
-
-      toast({ title: "Items created successfully!" });
-    } catch (error) {
-      toast({
-        title: "Failed to create items",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleUpdateSuccess = async () => {
-    try {
-      if (!user?.id) return;
-      const updatedItems = await getItems(user.id);
-      setItems(updatedItems);
-      toast({ title: "Items updated successfully!" });
-    } catch (error) {
-      toast({
-        title: "Failed to refresh items",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleOptimisticDelete = async (itemId: string) => {
-    const itemToDelete = items.find((item) => item.id === itemId);
-    if (!itemToDelete) return;
-
-    // Optimistic update
-    setItems((prev) => prev.filter((item) => item.id !== itemId));
-
-    try {
-      await fetch("/api/category/delete-category", {
-        method: "POST",
-        body: JSON.stringify({ itemId }),
-      });
-    } catch (error) {
-      // Revert on error
-      setItems((prev) => [...prev, itemToDelete]);
-      toast({
-        title: "Failed to delete item",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleOptimisticCopy = async (item: Item) => {
-    const tempId = `copy-${Date.now()}`;
-    const copiedItem = { ...item, id: tempId };
-
-    // Optimistic update
-    setItems((prev) => [...prev, copiedItem]);
-
-    try {
-      const response = await fetch("/api/copy-item", {
-        method: "POST",
-        body: JSON.stringify({ data: item }),
-      });
-      const newItem = await response.json();
-
-      // Replace temporary ID with real ID from server
-      setItems((prev) =>
-        prev.map((i) => (i.id === tempId ? { ...newItem, id: newItem.id } : i))
-      );
-      toast({ title: "Items copied successfully!" , variant: "default"});
-    } catch (error) {
-      // Revert on error
-      setItems((prev) => prev.filter((i) => i.id !== tempId));
-      toast({
-        title: "Failed to copy item",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleOptimisticEdit = async (updatedItem: Item) => {
-    const originalItems = items;
-
-    // Optimistic update
-    setItems((prev) =>
-      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-    );
-
-    try {
-      await fetch("/api/edit-item", {
-        method: "POST",
-        body: JSON.stringify({ data: updatedItem }),
-      });
-    } catch (error) {
-      // Revert on error
-      setItems(originalItems);
-      toast({
-        title: "Failed to update item",
-        variant: "destructive",
-      });
-    }
-  };
-
   useEffect(() => {
     const fetchItems = async () => {
       if (user?.id) {
@@ -320,19 +217,8 @@ export function CreateCategoryForm({
             </DialogHeader>
             <SelectItemsTable
               data={items}
-              onDelete={handleOptimisticDelete}
-              onCopy={handleOptimisticCopy}
-              onEdit={handleOptimisticEdit}
-              selectedItems={undefined} // 
-              onUpdateSuccess={handleUpdateSuccess}
+              selectedItems={undefined} //
               onSelectionChange={setSelectedItems}
-              onUpdateError={(error: Error) => {
-                toast({
-                  title: "Failed to update item",
-                  description: error.message,
-                  variant: "destructive",
-                });
-              }}
             />
             <div className="flex flex-row justify-evenly">
               <Button

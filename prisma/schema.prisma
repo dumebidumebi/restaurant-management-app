@@ -6,29 +6,35 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DIRECT_DATABASE_URL")
 }
 
 model User {
-  id         String     @id @unique
-  data       Json
-  store      Store?     @relation("UserStore")
-  createdAt  DateTime   @default(now())
-  items      Item[]
-  categories Category[]
+  id             String          @id @unique
+  data           Json
+  store          Store?          @relation("UserStore")
+  createdAt      DateTime        @default(now())
+  items          Item[]
+  categories     Category[]
+  modifiers      Modifier[]
+  modifiergroups ModifierGroup[]
 }
 
 model Store {
-  id        String     @id @default(uuid())
-  name      String
-  ownerId   String     @unique
-  owner     User       @relation("UserStore", fields: [ownerId], references: [id])
-  locations Location[]
-  menus     Menu[]
-  settings  Json // Contains settings divided into categories
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id                 String     @id @unique @default(uuid())
+  name               String
+  ownerId            String     @unique
+  owner              User       @relation("UserStore", fields: [ownerId], references: [id])
+  locations          Location[]
+  menus              Menu[]
+  settings           Json // Contains settings divided into categories
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  site_subdomain     String?    @unique
+  site_logo          String?
+  site_cover_image   String?
+  site_custom_domain String?
 }
 
 model Location {
@@ -75,7 +81,7 @@ model Item {
   name           String
   imageUrl       String
   displayName    String
-  description    String
+  description    String?
   price          Float
   options        String?
   allergens      String?
@@ -83,11 +89,11 @@ model Item {
   categories     Category[]      @relation("CategoryItems")
   isAvailable    Boolean?        @default(true) // Simple availability flag
   availability   Json? // JSON for availability settings (e.g., Sunday-Saturday)
-  modifierGroups ModifierGroup[]
+  modifierGroups ModifierGroup[] @relation("ItemModifierGroups")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  userId         String // Add this field
-  user           User            @relation(fields: [userId], references: [id]) // Add this relation
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
 }
 
 model ModifierGroup {
@@ -95,30 +101,32 @@ model ModifierGroup {
   name         String
   minSelect    Int
   maxSelect    Int
-  itemId       String
-  item         Item       @relation(fields: [itemId], references: [id])
-  modifiers    Modifier[]
-  isAvailable  Boolean    @default(true) // Simple availability flag
-  availability Json // JSON for availability settings (e.g., Sunday-Saturday)
+  items        Item[]     @relation("ItemModifierGroups")
+  modifiers    Modifier[] @relation("ModifierGroupModifiers")
+  isAvailable  Boolean?   @default(true) // Simple availability flag
+  availability Json? // JSON for availability settings (e.g., Sunday-Saturday)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
 }
 
 model Modifier {
-  id              String        @id @default(uuid())
-  name            String
-  price           Float
-  imageUrl        String?
-  displayName     String?
-  description     String?
-  minSelect       Int?
-  maxSelect       Int?
-  modifierGroupId String
-  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id])
-  isAvailable     Boolean       @default(true) // Simple availability flag
-  availability    Json // JSON for availability settings (e.g., Sunday-Saturday)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String          @id @default(uuid())
+  name           String
+  price          Float
+  imageUrl       String?
+  displayName    String?
+  description    String?
+  minSelect      Int?
+  maxSelect      Int?
+  modifierGroups ModifierGroup[] @relation("ModifierGroupModifiers")
+  isAvailable    Boolean?        @default(true) // Simple availability flag
+  availability   Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
 }
 
 enum ItemOptions {

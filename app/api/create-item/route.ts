@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
+import { ModifierGroup } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -38,6 +39,10 @@ export async function POST(req: NextRequest) {
     }
     
     console.log(data);
+
+    const  arr : ModifierGroup[] = data.modifierGroups
+    const arrayOfModifierGroupIds  =  arr?.map(item => ( item.id )) 
+   
     // Create the new item
     const newItem = await prisma.item.create({
       data: {
@@ -52,6 +57,7 @@ export async function POST(req: NextRequest) {
         // categoryId: "", // Replace with actual category handling
         isAvailable: true,
         availability: {}, // Add proper availability data if needed
+        modifierGroups: arrayOfModifierGroupIds.length ? { connect: arrayOfModifierGroupIds?.map((id: string) => ({ id })) }: undefined, 
       },
     });
 

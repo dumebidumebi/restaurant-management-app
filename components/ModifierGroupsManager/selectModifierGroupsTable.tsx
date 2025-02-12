@@ -24,20 +24,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useUser } from "@clerk/nextjs";
-import { Item } from "@prisma/client";
+import { ModifierGroup } from "@prisma/client";
 
-export function SelectItemsTable({
+export function SelectModifierGroupsTable({
   data,
   selectedItems, // NEW OPTIONAL PROP
   onSelectionChange,
 
 }: {
-  data: Item[];
-  selectedItems?: Item[]; // NEW OPTIONAL PROP
-  onSelectionChange?: (selectedItems: Item[]) => void;
+  data: ModifierGroup[];
+  selectedItems?: ModifierGroup[]; // NEW OPTIONAL PROP
+  onSelectionChange?: (selectedItems: ModifierGroup[]) => void;
 }) {
-
+  
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -51,7 +50,7 @@ export function SelectItemsTable({
     }, {} as Record<string, boolean>);
   });
 
-  const columns: ColumnDef<Item>[] = [
+  const columns: ColumnDef<ModifierGroup>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -78,15 +77,8 @@ export function SelectItemsTable({
         const item = row.original;
         return (
           <div className="flex items-center gap-4">
-            {item.imageUrl && (
-              <img
-                src={item.imageUrl}
-                alt={item.name}
-                className="h-10 w-10 rounded object-cover"
-              />
-            )}
             <div>
-              <p className="font-medium">{item.displayName}</p>
+              <p className="font-medium">{item.name}</p>
               <p className="text-sm text-gray-500">{item.name}</p>
             </div>
           </div>

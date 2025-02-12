@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
+import { ModifierGroup } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
       console.error("Failed to invalidate cache:", redisError);
     }
 
+    const  arr : ModifierGroup[] = data.modifierGroups
+    const arrayOfModifierGroupIds  =  arr?.map(item => ( item.id )) 
+   
     const updatedItem = await prisma.item.update({
       where: {
         id: data.id, // You need to get the item ID from somewhere
@@ -55,6 +59,7 @@ export async function POST(req: NextRequest) {
         // Add other fields you want to update
         isAvailable: data.isAvailable,
         updatedAt: new Date(), // Track update timestamp
+        modifierGroups: arrayOfModifierGroupIds.length ? { set: arrayOfModifierGroupIds?.map((id: string) => ({ id })) }: undefined, 
       },
     });
 

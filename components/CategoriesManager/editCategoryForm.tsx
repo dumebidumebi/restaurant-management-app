@@ -204,6 +204,7 @@ export function EditCategoryForm({
     fetchItems();
   }, [user?.id, toast]);
 
+  // populate the already selected items
   useEffect(() => {
     setSelectedItems([... (category.items)])
   }, []);
@@ -313,19 +314,8 @@ export function EditCategoryForm({
            {/* hence there are a bunch of unused functions */}
            <SelectItemsTable
               data={items}
-              onDelete={handleOptimisticDelete}//unused because buttons are only fully rendered on the itemstable page
-              onCopy={handleOptimisticCopy} //unused
-              onEdit={handleOptimisticEdit}//unused
               selectedItems={selectedItems} // 
-              onUpdateSuccess={handleUpdateSuccess}
               onSelectionChange={setSelectedItems}
-              onUpdateError={(error: Error) => {
-                toast({
-                  title: "Failed to update item",
-                  description: error.message,
-                  variant: "destructive",
-                });
-              }}
             />
            <div className="flex flex-row justify-evenly">
              <Button
