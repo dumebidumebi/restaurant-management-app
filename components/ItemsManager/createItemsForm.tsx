@@ -226,7 +226,7 @@ export function ItemsForm({
 
                             // Update form state or show success
                             setImageUrl(fileUrl);
-                            console.log(fileUrl);
+                           
 
                             // If you want to store the URL in your form:
                             // form.setValue("pictureUrl", fileUrl);

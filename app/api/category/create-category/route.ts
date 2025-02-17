@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
-import { Item } from "@prisma/client";
+import { Category, Item } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -9,8 +9,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { userId } = getAuth(req);
     const data = body.data;
-
-    console.log(data.items);
 
     if (!userId) {
       return new Response(
@@ -35,8 +33,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    console.log(data);
+    const arr: Item[] = data.items;
+    const arrayOfItemIds = arr?.map((item) => item.id);
 
-   
     // Create the new category with item connections
     const newCategory = await prisma.category.create({
       data: {
@@ -44,16 +44,18 @@ export async function POST(req: NextRequest) {
         name: data.displayName,
         description: data.description,
         isAvailable: true,
-        items: data.items?.length
-        ? { connect: data.items?.map((id: string) => ({ id })) }
-        : undefined, // Avoid sending empty array
+        items: arrayOfItemIds?.length
+          ? {
+              connect: arrayOfItemIds.map((id: string) => ({ id })),
+            }
+          : undefined,
       },
       include: {
         items: true, // Include connected items in the response
       },
     });
 
-    console.log(newCategory);
+    console.log("i just created this category ", newCategory);
     // Cache invalidation logic
     const cacheKey = `categories:${userId}`;
     try {

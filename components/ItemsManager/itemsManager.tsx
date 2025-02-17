@@ -16,13 +16,7 @@ import { Skeleton } from "../ui/skeleton";
 import { ItemsTable } from "./itemsTable";
 import { ItemsForm } from "./createItemsForm";
 
-async function createItem(userId: string, data: object) {
-  const settings = await fetch("/api/create-item", {
-    method: "POST",
-    body: JSON.stringify({ userId: userId, data: data }),
-  }).then((res) => res.json());
-  return settings;
-}
+
 export async function getItems(userId: string) {
   const response = await fetch("/api/get-items", {
     method: "POST",

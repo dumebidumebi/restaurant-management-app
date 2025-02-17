@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
-import { Item } from "@prisma/client";
+import { Category, Menu, Store } from "@prisma/client";
 import { NextRequest } from "next/server";
-import { Modifier } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,28 +26,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const arr: Modifier[] = data.modifiers;
-    const arrayOfModifierIds = arr?.map((item) => item.id);
+    // Fetch the store associated with the user
+    const store = await prisma.store.findUnique({
+      where: { ownerId: userId },
+    });
 
-    // Create the new category with item connections
-    const newModifier = await prisma.modifierGroup.create({
+    if (!store) {
+      return new Response(
+        JSON.stringify({ message: "Store not found for this user" }),
+        { status: 404 }
+      );
+    }
+
+    const arr: Category[] = data.categories;
+    const arrayOfCategoryIds = arr?.map((item) => item.id);
+
+    // Create the new menu with category connections
+    const newMenu = await prisma.menu.create({
       data: {
-        userId: userId,
-        name: data.name, // Required field mapped from displayName
-        minSelect: data.minSelect,
-        maxSelect: data.maxSelect,
-        modifiers: arrayOfModifierIds.length
-          ? { connect: arrayOfModifierIds?.map((id: string) => ({ id })) }
-          : undefined,
+        userId: userId, // Use the authenticated user's ID
+        storeId: store.id, // Use the fetched storeId
+        name: data.name,
         isAvailable: true, // Explicitly set availability
-        // minSelect/maxSelect omitted since not in sample data
-        // availability omitted since not in sample data
+        availability: {},
+        categories: {
+          connect: arrayOfCategoryIds.length
+            ? arrayOfCategoryIds.map((id: string) => ({ id }))
+            : undefined,
+        },
       },
     });
 
-    console.log("just made", newModifier);
+    console.log("just made", newMenu);
+
     // Cache invalidation logic
-    const cacheKey = `modifier-groups:${userId}`;
+    const cacheKey = `menus:${userId}`;
     try {
       await redis.del(cacheKey);
       console.log(`Cache invalidated for ${cacheKey}`);
@@ -56,14 +68,14 @@ export async function POST(req: NextRequest) {
       console.error("Failed to invalidate cache:", redisError);
     }
 
-    return new Response(JSON.stringify(newModifier), {
+    return new Response(JSON.stringify(newMenu), {
       status: 201,
       headers: {
         "Content-Type": "application/json",
       },
     });
   } catch (error) {
-    console.error("Error creating category:", error);
+    console.error("Error creating menu:", error);
     return new Response(
       JSON.stringify({
         message: "Internal server error",

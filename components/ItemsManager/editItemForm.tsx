@@ -29,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import * as Bytescale from "@bytescale/sdk";
 import { SelectModifierGroupsTable } from "../ModifierGroupsManager/selectModifierGroupsTable";
 import { DialogTrigger } from "@radix-ui/react-dialog";
+import { useUser } from "@clerk/nextjs";
+import { getModifierGroups } from "../ModifierGroupsManager/modifierGroupsManager";
 // Add this component inside your ItemsTable file
 
 const allergensEnum = z.enum([
@@ -83,6 +85,7 @@ export function EditItemDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
+  const { user } = useUser();
   const { toast } = useToast();
   const [imageUrl, setImageUrl] = useState(item.imageUrl);
   const [selectingItems, setSelectingItems] = useState(false);
@@ -131,6 +134,7 @@ export function EditItemDialog({
             price: values.price,
             options: JSON.stringify(values.options),
             allergens: JSON.stringify(values.allergens),
+            modifierGroups: selectedItems,
           },
         }),
       }).then((res) => res.json());
@@ -147,12 +151,31 @@ export function EditItemDialog({
   }
 
   useEffect(() => {
+    const fetchItems = async () => {
+      if (user?.id) {
+        try {
+          const items = await getModifierGroups(user.id);
+          setModifierGroups(items);
+          console.log("items", items);
+        } catch (error) {
+          toast({
+            title: "Failed to load items",
+            variant: "destructive",
+          });
+        } finally {
+        }
+      }
+    };
+    fetchItems();
+  }, [user?.id]);
+
+  useEffect(() => {
     setSelectedItems([...item.modifierGroups]);
   }, [item]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-5/6 overflow-scroll mb-20 rounded-md flex flex-col space-y-5 justify-items-start">
+      <DialogContent className="max-h-screen overflow-scroll h-fit mb-20 rounded-md flex flex-col space-y-5 justify-items-start">
         <DialogHeader>
           <DialogTitle className="mt-4">Edit Item</DialogTitle>
         </DialogHeader>

@@ -11,14 +11,14 @@ import { Separator } from "../ui/separator";
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Item, Modifier } from "@prisma/client";
+import { Item, Menu } from "@prisma/client";
 import { Skeleton } from "../ui/skeleton";
-import { ModifierGroupsTable } from "./modifierGroupsTable";
-import { CreateModifierGroupForm } from "./createModifierGroupForm";
+import { MenusTable } from "./menusTable";
+import { MenusForm } from "./createMenuForm";
 
 
-export async function getModifierGroups(userId: string) {
-  const response = await fetch("/api/modifier-group/get-modifier-group", {
+export async function getMenus(userId: string) {
+  const response = await fetch("/api/menu/get-menu", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -32,10 +32,10 @@ export async function getModifierGroups(userId: string) {
 
   return response.json();
 }
-export function ModifierGroupsManager() {
+export function MenuManager() {
   const { user } = useUser();
   const { toast } = useToast();
-  const [items, setItems] = useState<Modifier[]>([]);
+  const [items, setItems] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,9 +43,8 @@ export function ModifierGroupsManager() {
       if (user?.id) {
         try {
           setLoading(true);
-          const items = await getModifierGroups(user.id);
+          const items = await getMenus(user.id);
           setItems(items);
-          console.log("items", items)
         } catch (error) {
           toast({
             title: "Failed to load items",
@@ -63,7 +62,7 @@ export function ModifierGroupsManager() {
   const handleSubmitSuccess = async () => {
     try {
       if (!user?.id) return;
-      const updatedItems = await getModifierGroups(user.id);
+      const updatedItems = await getMenus(user.id);
       setItems(updatedItems);
 
       toast({ title: "Items created successfully!" });
@@ -78,7 +77,7 @@ export function ModifierGroupsManager() {
   const handleUpdateSuccess = async () => {
     try {
       if (!user?.id) return;
-      const updatedItems = await getModifierGroups(user.id);
+      const updatedItems = await getMenus(user.id);
       setItems(updatedItems);
       toast({ title: "Items updated successfully!" });
     } catch (error) {
@@ -89,17 +88,17 @@ export function ModifierGroupsManager() {
     }
   };
 
-  const handleOptimisticDelete = async (itemId: string) => {
-    const itemToDelete = items.find((item) => item.id === itemId);
+  const handleOptimisticDelete = async (menuId: string) => {
+    const itemToDelete = items.find((item) => item.id === menuId);
     if (!itemToDelete) return;
 
     // Optimistic update
-    setItems((prev) => prev.filter((item) => item.id !== itemId));
+    setItems((prev) => prev.filter((item) => item.id !== menuId));
 
     try {
-      await fetch("/api/modifier-group/delete-modifier-group", {
+      await fetch("/api/menu/delete-menu", {
         method: "POST",
-        body: JSON.stringify({ itemId }),
+        body: JSON.stringify({ menuId: menuId }),
       });
     } catch (error) {
       // Revert on error
@@ -111,7 +110,7 @@ export function ModifierGroupsManager() {
     }
   };
 
-  const handleOptimisticCopy = async (item: Modifier) => {
+  const handleOptimisticCopy = async (item: Menu) => {
     const tempId = `copy-${Date.now()}`;
     const copiedItem = { ...item, id: tempId };
 
@@ -119,7 +118,7 @@ export function ModifierGroupsManager() {
     setItems((prev) => [...prev, copiedItem]);
 
     try {
-      const response = await fetch("/api/modifier-group/copy-modifier-group", {
+      const response = await fetch("/api/menu/copy-menu", {
         method: "POST",
         body: JSON.stringify({ data: item }),
       });
@@ -139,7 +138,7 @@ export function ModifierGroupsManager() {
     }
   };
 
-  const handleOptimisticEdit = async (updatedItem: Modifier) => {
+  const handleOptimisticEdit = async (updatedItem: Menu) => {
     const originalItems = items;
 
     // Optimistic update
@@ -148,7 +147,7 @@ export function ModifierGroupsManager() {
     );
 
     try {
-      await fetch("/api/modifier-group/edit-modifier-group", {
+      await fetch("/api/menu/edit-menu", {
         method: "POST",
         body: JSON.stringify({ data: updatedItem }),
       });
@@ -167,12 +166,12 @@ export function ModifierGroupsManager() {
       <Card className="w-full ">
         <CardHeader>
           <div className="flex flex-row justify-between align-middle">
-            <CardTitle className="mt-2">Modifier Groups</CardTitle>
-            <CreateModifierGroupForm onSubmitSuccess={handleSubmitSuccess} />
+            <CardTitle className="mt-2">Menus</CardTitle>
+            <MenusForm onSubmitSuccess={handleSubmitSuccess} />
           </div>
           <Separator className="my-4" />
           <CardDescription>
-            Manage your menu modifier groups. Click "Create Modifier Group" to add new entries.
+            Manage your menus. Click "Create Menu" to add new entries.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -189,7 +188,7 @@ export function ModifierGroupsManager() {
               ))}
             </div>
           ) : items.length > 0 ? (
-            <ModifierGroupsTable
+            <MenusTable
               data={items}
               onDelete={handleOptimisticDelete}
               onCopy={handleOptimisticCopy}
@@ -204,7 +203,7 @@ export function ModifierGroupsManager() {
               }}
             />
           ) : (
-            <p className="text-gray-500">No modifiers created yet</p>
+            <p className="text-gray-500">No items created yet</p>
           )}
         </CardContent>
       </Card>

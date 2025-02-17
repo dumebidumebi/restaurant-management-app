@@ -4,6 +4,7 @@ import { getAuth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 
 const CACHE_TTL = 60 * 5; // 5 minutes in seconds
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = getAuth(req);
@@ -15,13 +16,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cacheKey = `categories:${userId}`;
+    const cacheKey = `menus:${userId}`;
 
     // Try to get cached data first
     try {
       const cachedData = await redis.get(cacheKey);
       if (cachedData) {
-        console.log("Serving categories from cache");
+        console.log("Serving menus from cache");
         return new Response(cachedData, {
           status: 200,
           headers: {
@@ -35,24 +36,30 @@ export async function POST(req: NextRequest) {
       // Continue to database query if Redis fails
     }
 
-    // Get all categories with their items
-    const categories = await prisma.category.findMany({
-      where: { userId: userId },
-      orderBy: { createdAt: "desc" },
-      include: { items: true }, // Include items related to the category
+    // Get all menus with their categories
+    const menus = await prisma.menu.findMany({
+      where: {
+        userId: userId, // Filter by user ID
+      },
+      orderBy: {
+        createdAt: "desc", // Optional: sort by creation date (newest first)
+      },
+      include: {
+        categories: true, // Include categories related to the menu
+      },
     });
-    
-    console.log("Categories fetched successfully", categories);
+
+    console.log("Menus fetched", menus);
+
     // Cache the result with TTL
     try {
-      await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(categories));
-      console.log("Categories cached successfully");
+      await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(menus));
+      console.log("Menus cached successfully");
     } catch (redisError) {
-      console.error("Failed to cache categories:", redisError);
+      console.error("Failed to cache menus:", redisError);
     }
-  
 
-    return new Response(JSON.stringify(categories), {
+    return new Response(JSON.stringify(menus), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
@@ -60,7 +67,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error fetching categories:", error);
+    console.error("Error fetching menus:", error);
     return new Response(
       JSON.stringify({
         message: "Internal server error",

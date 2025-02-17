@@ -29,7 +29,10 @@ export default function Layout({
         </head>
         <body className={inter.className}>
           <HeaderWeb />
+          <div className="mx-0">
           {children}
+          </div>
+          
         </body>
       </html>
     </>

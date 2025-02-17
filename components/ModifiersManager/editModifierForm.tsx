@@ -109,7 +109,7 @@ export function EditModifierDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-5/6 overflow-scroll mb-20 rounded-md flex flex-col space-y-5 justify-items-start">
+      <DialogContent className="max-h-screen overflow-scroll h-fit mb-20 rounded-md flex flex-col space-y-5 justify-items-start">
         <DialogHeader>
           <DialogTitle className="mt-4">Edit Modifier</DialogTitle>
         </DialogHeader>

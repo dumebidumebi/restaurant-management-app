@@ -18,6 +18,11 @@ export default clerkMiddleware(async (auth, req) => {
   const url = req.nextUrl;
   const pathname = url.pathname;
 
+   // Exclude API routes from middleware logic
+   if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
   // Get hostname (e.g., 'mike.com', 'test.mike.com')
   const hostname = req.headers.get("host");
 

@@ -71,6 +71,8 @@ export function CreateCategoryForm({
         ...values,
         items: selectedItems,
       });
+
+      setSelectedItems([])
       onSubmitSuccess();
       form.reset();
       setIsDialogOpen(false);
@@ -125,7 +127,7 @@ export function CreateCategoryForm({
             </DialogHeader>
             <Form {...form}>
               <form
-                onSubmit={form.handleSubmit(onSubmit)}
+                // onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-6"
               >
                 {/* Display Name */}
@@ -204,7 +206,11 @@ export function CreateCategoryForm({
                   ))}
                 </div>
 
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full" onClick={(e) =>{
+                  e.preventDefault()
+                  setIsDialogOpen(false);
+                  onSubmit(form.getValues());
+                }}>
                   Create Category
                 </Button>
               </form>

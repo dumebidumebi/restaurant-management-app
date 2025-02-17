@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getAuth } from "@clerk/nextjs/server";
-import { Item } from "@prisma/client";
+import { Category } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -17,12 +17,13 @@ export async function POST(req: NextRequest) {
         JSON.stringify({ message: "User ID and data are required" }),
         {
           status: 400,
+          headers: { "Content-Type": "application/json" },
         }
       );
     }
 
     // Cache invalidation logic
-    const cacheKey = `categories:${userId}`;
+    const cacheKey = `menus:${userId}`;
     try {
       await redis.del(cacheKey);
       console.log(`Cache invalidated for ${cacheKey}`);
@@ -30,42 +31,42 @@ export async function POST(req: NextRequest) {
       console.error("Failed to invalidate cache:", redisError);
     }
 
-    const arr: Item[] = data.items;
-    const arrayOfItemIds = arr?.map((item) => item.id);
+    // Extract category IDs from the incoming data
+    const arr: Category[] = data.categories;
+    const categoryIds = arr?.map((category) => category.id);
 
-    // Create the new item
-    // Create the new category with item connections
-    await prisma.category.update({
+    // Update the menu
+    const updatedMenu = await prisma.menu.update({
       where: {
-        id: data.id, // You need to get the item ID from somewhere
-        userId: userId, // Ensures users can only update their own items
+        id: data.id,
+        userId: userId, // Ensures user owns the menu
       },
       data: {
-        userId: userId,
-        name: data.name,
-        description: data.description,
-        isAvailable: data.isAvailable,
-        items: arrayOfItemIds?.length
-        ? {
-            connect: arrayOfItemIds.map((id: string) => ({ id })),
-          }
-        : undefined,
+        name: data.name, // Update the menu name
+        categories: {
+          set: categoryIds.map((id) => ({ id })) || [],
+        },
+
+        isAvailable: data.isAvailable, // Update availability
+        // Add any other fields you want to update here
       },
       include: {
-        items: true, // Include connected items in the response
+        categories: true, // Include the categories in the response
       },
     });
 
-    return new Response(JSON.stringify({ response: "ok" }), {
-      status: 201,
+    console.log("just updated", updatedMenu);
+    return new Response(JSON.stringify(updatedMenu), {
+      status: 200,
       headers: {
         "Content-Type": "application/json",
       },
     });
   } catch (error) {
-    console.error("Error creating item:", error);
+    console.error("Error updating menu:", error);
     return new Response(JSON.stringify({ message: "Internal server error" }), {
       status: 500,
+      headers: { "Content-Type": "application/json" },
     });
   }
 }

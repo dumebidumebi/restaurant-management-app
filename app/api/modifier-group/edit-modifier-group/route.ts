@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         name: data.name,        // Required field mapped from displayName 
         minSelect: data. minSelect,
         maxSelect: data.maxSelect,
-        modifiers: arrayOfModifierIds.length ? { set: arrayOfModifierIds?.map((id: string) => ({ id })) }: undefined, 
+        modifiers: { set: arrayOfModifierIds?.map((id: string) => ({ id }))  || []},
         isAvailable: data.isAvailable,             // Explicitly set availability
         // minSelect/maxSelect omitted since not in sample data
         // availability omitted since not in sample data

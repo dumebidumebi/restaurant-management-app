@@ -16,7 +16,7 @@ import { Skeleton } from "../ui/skeleton";
 import { CategoriesTable } from "./categoriesTable";
 import { CreateCategoryForm } from "./createCategoryForm";
 
-async function getCategories(userId: string) {
+export async function getCategories(userId: string) {
   const response = await fetch("/api/category/get-category", {
     method: "POST",
     headers: {

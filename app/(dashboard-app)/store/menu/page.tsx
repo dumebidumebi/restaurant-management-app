@@ -40,6 +40,7 @@ import { ItemsManager } from "@/components/ItemsManager/itemsManager";
 import { CategoryManager } from "@/components/CategoriesManager/categoryManager ";
 import { ModifiersManager } from "@/components/ModifiersManager/modifiersManager";
 import { ModifierGroupsManager } from "@/components/ModifierGroupsManager/modifierGroupsManager";
+import { MenuManager } from "@/components/MenuManager/menuManager";
 
 // use `prisma` in your application to read and write data in your DB
 
@@ -90,31 +91,12 @@ export default function MenuPage() {
   );
 }
 
-const MenuManager = () =>{
-  return (
-    <div>
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Menus</CardTitle>
-          <CardDescription>
-            Make changes to your account here. Click save when you're done.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2"></CardContent>
-        <CardFooter>
-          <Button>Save changes</Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
-}
-
-// export function CategoryManager() {
+// const MenuManager = () =>{
 //   return (
 //     <div>
 //       <Card className="w-full">
 //         <CardHeader>
-//           <CardTitle>Categories</CardTitle>
+//           <CardTitle>Menus</CardTitle>
 //           <CardDescription>
 //             Make changes to your account here. Click save when you're done.
 //           </CardDescription>
@@ -128,40 +110,3 @@ const MenuManager = () =>{
 //   );
 // }
 
-// export function ModifierGroupsManager() {
-//   return (
-//     <div>
-//       <Card className="w-full">
-//         <CardHeader>
-//           <CardTitle>Modifier Groups</CardTitle>
-//           <CardDescription>
-//             Make changes to your account here. Click save when you're done.
-//           </CardDescription>
-//         </CardHeader>
-//         <CardContent className="space-y-2"></CardContent>
-//         <CardFooter>
-//           <Button>Save changes</Button>
-//         </CardFooter>
-//       </Card>
-//     </div>
-//   );
-// }
-
-// export function ModifiersManager() {
-//   return (
-//     <div>
-//       <Card className="w-full">
-//         <CardHeader>
-//           <CardTitle>Modifiers</CardTitle>
-//           <CardDescription>
-//             Make changes to your account here. Click save when you're done.
-//           </CardDescription>
-//         </CardHeader>
-//         <CardContent className="space-y-2"></CardContent>
-//         <CardFooter>
-//           <Button>Save changes</Button>
-//         </CardFooter>
-//       </Card>
-//     </div>
-//   );
-// }
