@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -22,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useParams } from "next/navigation";
+import { useCartStore } from "@/stores/cartStore";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export async function getSiteMenu(storeId: string) {
   const response = await fetch("/api/get-store-menu", {
@@ -42,6 +45,11 @@ export async function getSiteMenu(storeId: string) {
 export default function MenuPage() {
   const params = useParams();
   const [siteMenu, setSiteMenu] = useState<any>(null); // Replace 'any' with the correct type if needed
+  const [quantities, setQuantities] = useState<{ [key: string]: number }>({});
+  const [selectedModifiers, setSelectedModifiers] = useState<{
+    [key: string]: any;
+  }>({});
+  const { addToCart } = useCartStore();
   const siteId = params.site_id;
 
   useEffect(() => {
@@ -83,7 +91,7 @@ export default function MenuPage() {
                   block: "center",
                 });
               }}
-              className="cursor-pointer hover:bg-yellow-400 text-md font-normal lg:w-full flex-auto items-center text-left lg:text-left"
+              className="cursor-pointer hover:bg-yellow-400 text-md font-light lg:w-full flex-auto items-center text-left lg:justify-start"
             >
               {category.name}
             </Button>
@@ -102,88 +110,198 @@ export default function MenuPage() {
               {category.name}
             </h3>
             <div className="grid gap-8 lg:grid-cols-2">
-              {category.items.map((item: any) => (
-                <Dialog key={item.id}>
-                  <DialogTrigger>
-                    <div
-                      key={item.id}
-                      className="border rounded-lg  shadow hover:shadow-lg p-4 transition flex  h-40 flex-row"
-                    >
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.name}
-                        width={150}
-                        height={150}
-                        className=" rounded-t-lg object-contain"
-                      />
-
-                      <div className="ml-4 text-left">
-                        <h4 className="text-md font-bold text-gray-900 overflow-clip">
-                          {item.name}
-                        </h4>
-                        <p
-                          className="text-gray-600 text-sm mt-2 h-10 overflow-hidden text-wrap truncate"
-                          style={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                          }}
-                        >
-                          {item.description}
-                        </p>
-                        <p className="mt-2">${item.price.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  </DialogTrigger>
-                  <DialogContent className="w-5/6 h-5/6 flex flex-col justify-between rounded-md">
-                    <DialogHeader>
-                      <div className="flex flex-row items-start">
+              {category.items.map((item: any) => {
+                const currentQuantity = quantities[item.id] || 1; // to track quanities
+                return (
+                  <Dialog
+                    key={item.id}
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setSelectedModifiers({}); // Reset modifiers when dialog closes
+                      }
+                    }}
+                  >
+                    <DialogTrigger>
+                      <div
+                        key={item.id}
+                        className="border rounded-lg  shadow hover:shadow-lg p-4 transition flex  h-40 flex-row"
+                      >
                         <Image
                           src={item.imageUrl}
                           alt={item.name}
-                          width={158}
-                          height={158}
-                          className="object-cover rounded-t-lg"
+                          width={150}
+                          height={150}
+                          className=" rounded-t-lg object-contain"
                         />
-                      </div>
-                      <DialogTitle className="text-left">
-                        {item.name}
-                      </DialogTitle>
-                      <DialogDescription className="text-left">
-                        {item.description}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="mb-0 bottom-0 flex flex-row">
-                      <Select>
-                        <SelectTrigger className="w-32 outline-none">
-                          <SelectValue placeholder="1" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectLabel>Quantity</SelectLabel>
-                            <SelectItem value="1">1</SelectItem>
-                            <SelectItem value="2">2</SelectItem>
-                            <SelectItem value="3">3</SelectItem>
-                            <SelectItem value="4">4</SelectItem>
-                            <SelectItem value="5">5</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
 
-                      <Button
-                        variant={"default"}
-                        className="w-full justify-between"
-                      >
-                        <p>Add Item</p>
-                        <div className="w-fit flex flex-row justify-center">
-                          <span>${item.price}</span>
-                          <ChevronRight className="mt-0.5" />
+                        <div className="ml-4 text-left">
+                          <h4 className="text-md font-bold text-gray-900 overflow-clip">
+                            {item.name}
+                          </h4>
+                          <p
+                            className="text-gray-600 text-sm mt-2 h-10 overflow-hidden text-wrap truncate"
+                            style={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                            }}
+                          >
+                            {item.description}
+                          </p>
+                          <p className="mt-2">${item.price.toFixed(2)}</p>
                         </div>
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              ))}
+                      </div>
+                    </DialogTrigger>
+                    <DialogContent className="w-5/6 h-5/6 flex flex-col justify-between rounded-md">
+                      <DialogHeader>
+                        <div className="flex flex-row items-start">
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            width={158}
+                            height={158}
+                            className="object-cover rounded-t-lg"
+                          />
+                        </div>
+                        <DialogTitle className="text-left">
+                          {item.name}
+                        </DialogTitle>
+                        <DialogDescription className="text-left">
+                          {item.description}
+                        </DialogDescription>
+                      </DialogHeader>
+                      {/* modifiergroups and modifiers */}
+                      {/* Add this inside DialogContent, after the header */}
+                      {item.modifierGroups?.length > 0 && (
+                        <div className="overflow-y-auto flex-1">
+                          {item.modifierGroups.map((group: any) => (
+                            <div key={group.id} className="mb-6">
+                              <h4 className="font-medium mb-2">{group.name}</h4>
+                              <p className="text-sm text-gray-500 mb-3">
+                                {group.minSelect > 0 &&
+                                  `Minimum ${group.minSelect} selections`}
+                                {group.maxSelect > 0 &&
+                                  `Maximum ${group.maxSelect} selections`}
+                              </p>
+                              <div className="space-y-2">
+                                {group.modifiers.map((modifier: any) => (
+                                  <label
+                                    key={modifier.id}
+                                    className="flex items-center space-x-3 p-2 border rounded-lg hover:bg-gray-50"
+                                  >
+                                    <Checkbox
+                                      checked={
+                                        selectedModifiers[modifier.id]
+                                          ?.quantity > 0
+                                      }
+                                      onCheckedChange={(checked) => {
+                                        setSelectedModifiers((prev) => {
+                                          const newState = { ...prev };
+                                          if (checked) {
+                                            newState[modifier.id] = {
+                                              ...modifier,
+                                              quantity: 1,
+                                            };
+                                          } else {
+                                            delete newState[modifier.id];
+                                          }
+                                          return newState;
+                                        });
+                                      }}
+                                    />
+                                    <div className="flex justify-between w-full">
+                                      <span>{modifier.name}</span>
+                                      {modifier.price > 0 && (
+                                        <span>
+                                          +${modifier.price.toFixed(2)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <DialogFooter className="mb-0 bottom-0 flex flex-row">
+                        <Select
+                          value={currentQuantity.toString()}
+                          onValueChange={(value) =>
+                            setQuantities((prev) => ({
+                              ...prev,
+                              [item.id]: Number(value),
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-32 outline-none">
+                            <SelectValue placeholder="1" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Quantity</SelectLabel>
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                                <SelectItem key={num} value={num.toString()}>
+                                  {num}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <DialogClose asChild>
+                          <Button
+                            variant={"default"}
+                            className="w-full justify-between"
+                            onClick={() => {
+                              const cartItem = {
+                                id: item.id,
+                                name: item.name,
+                                price: item.price,
+                                quantity: currentQuantity,
+                                imageUrl: item.imageUrl,
+                                stripePriceId: item.stripePriceId,
+                                // Initialize modifiers as empty array
+                              };
+
+                              // Add modifiers only if they exist
+                              if (Object.keys(selectedModifiers).length > 0) {
+                                cartItem.modifiers = Object.values(
+                                  selectedModifiers
+                                ).map((m) => ({
+                                  id: m.id,
+                                  name: m.name,
+                                  price: m.price,
+                                  stripePriceId: m.stripePriceId,
+                                  quantity: m.quantity,
+                                }));
+                              }
+
+                              addToCart(cartItem);
+                            }}
+                          >
+                            <p>Add Item</p>
+                            <div className="w-fit flex flex-row justify-center">
+                              <span>
+                                $
+                                {(
+                                  item.price * currentQuantity +
+                                  (Object.values(selectedModifiers)?.length > 0
+                                    ? Object.values(selectedModifiers).reduce(
+                                        (sum, m) => sum + m.price * m.quantity,
+                                        0
+                                      )
+                                    : 0)
+                                ).toFixed(2)}
+                              </span>
+                              <ChevronRight className="mt-0.5" />
+                            </div>
+                          </Button>
+                        </DialogClose>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                );
+              })}
             </div>
           </section>
         ))}

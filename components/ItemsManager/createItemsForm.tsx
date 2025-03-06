@@ -31,6 +31,9 @@ import { ModifierGroup } from "@prisma/client";
 import { getModifierGroups } from "../ModifierGroupsManager/modifierGroupsManager";
 import { toast } from "@/hooks/use-toast";
 
+// Define the Allergen type
+type AllergenKey = "DAIRY" | "EGGS" | "FISH" | "GLUTEN" | "PEANUTS" | "SOY" | "TREENUTS";
+
 const allergensEnum = z.enum([
   "DAIRY",
   "EGGS",
@@ -51,29 +54,46 @@ const formSchema = z.object({
     glutenFree: z.boolean().default(false),
     vegetarian: z.boolean().default(false),
   }),
-  allergens: z
-    .object({
-      dairy: z.boolean().default(false),
-      eggs: z.boolean().default(false),
-      fish: z.boolean().default(false),
-      gluten: z.boolean().default(false),
-      peanuts: z.boolean().default(false),
-      soy: z.boolean().default(false),
-      treeNuts: z.boolean().default(false),
-    })
-    .transform((obj) =>
-      Object.entries(obj)
-        .filter(([_, value]) => value)
-        .map(
-          ([key]) =>
-            allergensEnum.enum[
-              key.toUpperCase() as keyof typeof allergensEnum.enum
-            ]
-        )
-    ),
+  allergens: z.object({
+    dairy: z.boolean().default(false),
+    eggs: z.boolean().default(false),
+    fish: z.boolean().default(false),
+    gluten: z.boolean().default(false),
+    peanuts: z.boolean().default(false),
+    soy: z.boolean().default(false),
+    treeNuts: z.boolean().default(false),
+  }),
 });
 
-async function createItem(userId: string, data: object) {
+// Extract the type from the schema
+type FormValues = z.infer<typeof formSchema>;
+
+// Helper function to transform allergens to enum values
+const transformAllergens = (allergensObj: FormValues["allergens"]): AllergenKey[] => {
+  const result: AllergenKey[] = [];
+  if (allergensObj.dairy) result.push("DAIRY");
+  if (allergensObj.eggs) result.push("EGGS");
+  if (allergensObj.fish) result.push("FISH");
+  if (allergensObj.gluten) result.push("GLUTEN");
+  if (allergensObj.peanuts) result.push("PEANUTS");
+  if (allergensObj.soy) result.push("SOY");
+  if (allergensObj.treeNuts) result.push("TREENUTS");
+  return result;
+};
+
+async function createItem(userId: string, data: {
+  displayName: string;
+  description: string;
+  price: number;
+  options: {
+    alcohol: boolean;
+    glutenFree: boolean;
+    vegetarian: boolean;
+  };
+  allergens: AllergenKey[];
+  imageUrl: string;
+  modifierGroups: ModifierGroup[];
+}) {
   const settings = await fetch("/api/create-item", {
     method: "POST",
     body: JSON.stringify({ userId: userId, data: data }),
@@ -87,12 +107,13 @@ export function ItemsForm({
   onSubmitSuccess: () => void;
 }) {
   const { user } = useUser();
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState<string>("");
   const [selectingItems, setSelectingItems] = useState(false);
   const [selectedItems, setSelectedItems] = useState<ModifierGroup[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const form = useForm<z.infer<typeof formSchema>>({
+  
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       picture: "",
@@ -105,7 +126,6 @@ export function ItemsForm({
         vegetarian: false,
       },
       allergens: {
-        // ✅ Ensure it matches the pre-transformed schema
         dairy: false,
         eggs: false,
         fish: false,
@@ -113,35 +133,45 @@ export function ItemsForm({
         peanuts: false,
         soy: false,
         treeNuts: false,
-      }, // ✅ Use an array instead of an object
+      },
     },
   });
 
   const uploadManager = new Bytescale.UploadManager({
-    apiKey: "public_223k23JD31j7Pm3EweeP4eFXUgwY", // This is your API key.
+    apiKey: "public_223k23JD31j7Pm3EweeP4eFXUgwY",
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: FormValues) {
     console.log("Submitting form:", values);
     try {
       if (!user) return;
 
+      // Transform the allergens object to array format
+      const transformedAllergens = transformAllergens(values.allergens);
+      
       await createItem(user.id, {
-        ...values,
+        displayName: values.displayName,
+        description: values.description,
+        price: values.price,
+        options: values.options,
+        allergens: transformedAllergens,
         imageUrl: imageUrl,
-        allergens: values.allergens,
-        modifierGroups: modifierGroups,
+        modifierGroups: selectedItems,
       });
 
       onSubmitSuccess();
       // Reset form to default values
       form.reset();
-
-      // Refresh items list after successful creation
-
+      
       setImageUrl("");
       setIsDialogOpen(false);
-    } catch (error) {}
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      toast({
+        title: "Failed to create item",
+        variant: "destructive",
+      });
+    }
   }
 
   useEffect(() => {
@@ -156,12 +186,23 @@ export function ItemsForm({
             title: "Failed to load items",
             variant: "destructive",
           });
-        } finally {
         }
       }
     };
     fetchItems();
   }, [user?.id]);
+
+  // Define the allergen fields for rendering
+  const allergenFields = [
+    { key: "dairy", label: "Dairy" },
+    { key: "eggs", label: "Eggs" },
+    { key: "fish", label: "Fish" },
+    { key: "gluten", label: "Gluten" },
+    { key: "peanuts", label: "Peanuts" },
+    { key: "soy", label: "Soy" },
+    { key: "treeNuts", label: "Tree Nuts" },
+  ] as const;
+  
   return (
     <Dialog
       open={isDialogOpen}
@@ -181,11 +222,8 @@ export function ItemsForm({
           <DialogTitle className="mt-4">Create New Item</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form
-          //  onSubmit={form.handleSubmit(onSubmit)} 
-           className="space-y-8">
+          <form className="space-y-8">
             {/* Picture Upload */}
-
             <FormField
               control={form.control}
               name="picture"
@@ -199,7 +237,7 @@ export function ItemsForm({
                         accept="image/*"
                         onChange={async (e) => {
                           const files = e.target.files;
-                          //   field.onChange(files || null); // Handle null case
+                          field.onChange(files?.[0]?.name || "");
 
                           if (!files || files.length === 0) {
                             // Handle empty file selection
@@ -217,19 +255,14 @@ export function ItemsForm({
                               throw new Error("Invalid file type");
                             }
 
-                            const { fileUrl, filePath } =
-                              await uploadManager.upload({
-                                data: file,
-                                mime: file.type,
-                                originalFileName: file.name,
-                              });
+                            const { fileUrl } = await uploadManager.upload({
+                              data: file,
+                              mime: file.type,
+                              originalFileName: file.name,
+                            });
 
                             // Update form state or show success
                             setImageUrl(fileUrl);
-                           
-
-                            // If you want to store the URL in your form:
-                            // form.setValue("pictureUrl", fileUrl);
                           } catch (error) {
                             console.error("Upload error:", error);
                             form.setError("picture", {
@@ -305,13 +338,13 @@ export function ItemsForm({
                 open={selectingItems}
                 onOpenChange={() => setSelectingItems((prev) => !prev)}
               >
-                <DialogTrigger>
+                <DialogTrigger asChild>
                   <Button
                     variant={"default"}
                     className="w-full"
                     onClick={(e) => {
                       e.preventDefault();
-                      setSelectingItems((prev) => !prev)
+                      setSelectingItems((prev) => !prev);
                     }}
                   >
                     Select Modifier Groups <MousePointerClick />
@@ -359,12 +392,11 @@ export function ItemsForm({
                 </div>
               )}
               {selectedItems.map((item) => (
-                <div className="outline flex  rounded-md h-20 mt-4 outline-slate-200 outline-1 flex-row items-center justify-between">
+                <div key={item.id} className="outline flex rounded-md h-20 mt-4 outline-slate-200 outline-1 flex-row items-center justify-between">
                   <div className="flex flex-row items-center space-x-4 mx-5">
                     <p className="text-sm leading-none ">{item.name}</p>
                   </div>
                   <div className="flex flex-row items-center space-x-4 mx-5">
-                    {/* Add leading-none */}
                     <Button
                       onClick={(e) => {
                         e.preventDefault();
@@ -372,11 +404,10 @@ export function ItemsForm({
                           prev.filter((i) => i.id !== item.id)
                         );
                       }}
-                      className="h-6 w-6 p-1 ml-2" // Increased size and added padding
+                      className="h-6 w-6 p-1 ml-2"
                       variant="outline"
                     >
                       <XIcon className="h-4 w-4" />
-                      {/* Set explicit icon size */}
                     </Button>
                   </div>
                 </div>
@@ -457,22 +488,22 @@ export function ItemsForm({
             {/* Allergens Section */}
             <div className="space-y-4">
               <h3 className="font-medium">Allergens</h3>
-              {Object.keys(form.getValues().allergens).map((allergen) => (
+              {allergenFields.map(({ key, label }) => (
                 <FormField
-                  key={allergen}
+                  key={key}
                   control={form.control}
-                  name={`allergens.${allergen}`} // ✅ Use correct path
+                  name={`allergens.${key}` as keyof FormValues}
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
-                        <FormLabel className="capitalize">{allergen}</FormLabel>
+                        <FormLabel className="capitalize">{label}</FormLabel>
                         <FormDescription>
-                          {`Contains ${allergen}`}
+                          {`Contains ${label.toLowerCase()}`}
                         </FormDescription>
                       </div>
                       <FormControl>
                         <Switch
-                          checked={field.value ? true : false}
+                          checked={!!field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
@@ -482,14 +513,17 @@ export function ItemsForm({
               ))}
             </div>
 
-            <Button type="submit" className="w-full"
-             onClick={(e)=>{
-               e.preventDefault();
-               onSubmit(form.getValues())
-               setSelectedItems([])
-               setSelectingItems(false)
-               setIsDialogOpen(false)
-             }}>
+            <Button
+              type="submit"
+              className="w-full"
+              onClick={(e) => {
+                e.preventDefault();
+                onSubmit(form.getValues());
+                setSelectedItems([]);
+                setSelectingItems(false);
+                setIsDialogOpen(false);
+              }}
+            >
               Create Item
             </Button>
           </form>

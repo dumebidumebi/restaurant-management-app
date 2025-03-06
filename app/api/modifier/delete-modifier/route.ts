@@ -39,6 +39,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // const modifier = deleteResult
+
+    // // Archive Stripe product
+    // if (modifier.stripeProductId) {
+    //   await stripe.products.update(modifier.stripeProductId, {
+    //     active: false,
+    //   });
+    // }
+
     if (deleteResult.count === 0) {
       return new Response(
         JSON.stringify({

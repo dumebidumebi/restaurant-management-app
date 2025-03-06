@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { stripe } from "@/lib/stripe";
 import { getAuth } from "@clerk/nextjs/server";
 import { ModifierGroup } from "@prisma/client";
 import { NextRequest } from "next/server";
-
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,12 +38,24 @@ export async function POST(req: NextRequest) {
     } catch (redisError) {
       console.error("Failed to invalidate cache:", redisError);
     }
-    
+
     console.log(data);
-    
-    const  arr : ModifierGroup[] = data.modifierGroups
-    const arrayOfModifierGroupIds  =  arr?.map(item => ( item.id )) 
-   
+
+    const arr: ModifierGroup[] = data.modifierGroups;
+    const arrayOfModifierGroupIds = arr?.map((item) => item.id);
+
+    // Create Stripe product
+    const product = await stripe.products.create({
+      name: data.displayName,
+      description: data.description,
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: Math.round(data.price * 100),
+      currency: "usd",
+    });
+
     // Create the new item
     const newItem = await prisma.item.create({
       data: {
@@ -58,7 +70,11 @@ export async function POST(req: NextRequest) {
         // categoryId: "", // Replace with actual category handling
         isAvailable: true,
         availability: {}, // Add proper availability data if needed
-        modifierGroups: arrayOfModifierGroupIds.length ? { connect: arrayOfModifierGroupIds?.map((id: string) => ({ id })) }: undefined, 
+        modifierGroups: arrayOfModifierGroupIds.length
+          ? { connect: arrayOfModifierGroupIds?.map((id: string) => ({ id })) }
+          : undefined,
+        stripeProductId: product.id,
+        stripePriceId: price.id,
       },
     });
 

@@ -80,23 +80,25 @@ model Category {
 }
 
 model Item {
-  id             String          @id @default(uuid())
-  name           String
-  imageUrl       String
-  displayName    String
-  description    String?
-  price          Float
-  options        String?
-  allergens      String?
-  categoryId     String?
-  categories     Category[]      @relation("CategoryItems")
-  isAvailable    Boolean?        @default(true) // Simple availability flag
-  availability   Json? // JSON for availability settings (e.g., Sunday-Saturday)
-  modifierGroups ModifierGroup[] @relation("ItemModifierGroups")
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  userId         String
-  user           User            @relation(fields: [userId], references: [id])
+  id              String          @id @default(uuid())
+  name            String
+  imageUrl        String
+  displayName     String
+  description     String?
+  price           Float
+  options         String?
+  allergens       String?
+  categoryId      String?
+  categories      Category[]      @relation("CategoryItems")
+  isAvailable     Boolean?        @default(true) // Simple availability flag
+  availability    Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  modifierGroups  ModifierGroup[] @relation("ItemModifierGroups")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  stripeProductId String? 
+  stripePriceId   String?
 }
 
 model ModifierGroup {
@@ -130,6 +132,8 @@ model Modifier {
   updatedAt      DateTime        @updatedAt
   userId         String
   user           User            @relation(fields: [userId], references: [id])
+  stripeProductId  String?         
+  stripePriceId    String? 
 }
 
 enum ItemOptions {

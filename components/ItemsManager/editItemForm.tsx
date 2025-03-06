@@ -31,7 +31,9 @@ import { SelectModifierGroupsTable } from "../ModifierGroupsManager/selectModifi
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { useUser } from "@clerk/nextjs";
 import { getModifierGroups } from "../ModifierGroupsManager/modifierGroupsManager";
-// Add this component inside your ItemsTable file
+
+// Define the Allergen type
+type AllergenKey = "DAIRY" | "EGGS" | "FISH" | "GLUTEN" | "PEANUTS" | "SOY" | "TREE_NUTS";
 
 const allergensEnum = z.enum([
   "DAIRY",
@@ -43,6 +45,7 @@ const allergensEnum = z.enum([
   "TREE_NUTS",
 ]);
 
+// Define the form schema
 const formSchema = z.object({
   picture: z.string(),
   displayName: z.string().min(1, "Display name is required"),
@@ -53,75 +56,112 @@ const formSchema = z.object({
     glutenFree: z.boolean().default(false),
     vegetarian: z.boolean().default(false),
   }),
-  allergens: z
-    .object({
-      dairy: z.boolean().default(false),
-      eggs: z.boolean().default(false),
-      fish: z.boolean().default(false),
-      gluten: z.boolean().default(false),
-      peanuts: z.boolean().default(false),
-      soy: z.boolean().default(false),
-      treeNuts: z.boolean().default(false),
-    })
-    .transform((obj) =>
-      Object.entries(obj)
-        .filter(([_, value]) => value)
-        .map(
-          ([key]) =>
-            allergensEnum.enum[
-              key.toUpperCase() as keyof typeof allergensEnum.enum
-            ]
-        )
-    ),
+  allergens: z.object({
+    dairy: z.boolean().default(false),
+    eggs: z.boolean().default(false),
+    fish: z.boolean().default(false),
+    gluten: z.boolean().default(false),
+    peanuts: z.boolean().default(false),
+    soy: z.boolean().default(false),
+    treeNuts: z.boolean().default(false),
+  }),
 });
+
+// Extract the type from the schema
+type FormValues = z.infer<typeof formSchema>;
+
+// Extend the Item type to include modifierGroups
+type ItemWithModifierGroups = Item & {
+  modifierGroups: ModifierGroup[];
+};
+
 export function EditItemDialog({
   item,
   open,
   onOpenChange,
   onSuccess,
 }: {
-  item: Item;
+  item: ItemWithModifierGroups;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }) {
   const { user } = useUser();
   const { toast } = useToast();
-  const [imageUrl, setImageUrl] = useState(item.imageUrl);
+  const [imageUrl, setImageUrl] = useState<string>(item.imageUrl || "");
   const [selectingItems, setSelectingItems] = useState(false);
   const [selectedItems, setSelectedItems] = useState<ModifierGroup[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
+
+  // Helper function to transform the allergens form data to array format
+  const transformAllergens = (allergensObj: FormValues["allergens"]): AllergenKey[] => {
+    const result: AllergenKey[] = [];
+    if (allergensObj.dairy) result.push("DAIRY");
+    if (allergensObj.eggs) result.push("EGGS");
+    if (allergensObj.fish) result.push("FISH");
+    if (allergensObj.gluten) result.push("GLUTEN");
+    if (allergensObj.peanuts) result.push("PEANUTS");
+    if (allergensObj.soy) result.push("SOY");
+    if (allergensObj.treeNuts) result.push("TREE_NUTS");
+    return result;
+  };
 
   const uploadManager = new Bytescale.UploadManager({
     apiKey: "public_223k23JD31j7Pm3EweeP4eFXUgwY",
   });
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  // Helper function to parse allergens string safely
+  const parseAllergens = (allergensStr: string | null): AllergenKey[] => {
+    if (!allergensStr) return [];
+    try {
+      return JSON.parse(allergensStr);
+    } catch (e) {
+      console.error("Error parsing allergens:", e);
+      return [];
+    }
+  };
+
+  // Helper function to parse options string safely
+  const parseOptions = (optionsStr: string | null) => {
+    if (!optionsStr) return { alcohol: false, glutenFree: false, vegetarian: false };
+    try {
+      const parsed = JSON.parse(optionsStr);
+      return {
+        alcohol: parsed?.alcohol || false,
+        glutenFree: parsed?.glutenFree || false,
+        vegetarian: parsed?.vegetarian || false,
+      };
+    } catch (e) {
+      console.error("Error parsing options:", e);
+      return { alcohol: false, glutenFree: false, vegetarian: false };
+    }
+  };
+
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      picture: item.imageUrl,
-      displayName: item.displayName,
-      description: item.description,
+      picture: item.imageUrl || "",
+      displayName: item.displayName || "",
+      description: item.description || "",
       price: item.price,
-      options: {
-        alcohol: JSON.parse(item.options)?.alcohol || false,
-        glutenFree: JSON.parse(item.options)?.glutenFree || false,
-        vegetarian: JSON.parse(item.options)?.vegetarian || false,
-      },
+      options: parseOptions(item.options as string | null),
       allergens: {
-        dairy: item.allergens?.includes("DAIRY") || false,
-        eggs: item.allergens?.includes("EGGS") || false,
-        fish: item.allergens?.includes("FISH") || false,
-        gluten: item.allergens?.includes("GLUTEN") || false,
-        peanuts: item.allergens?.includes("PEANUTS") || false,
-        soy: item.allergens?.includes("SOY") || false,
-        treeNuts: item.allergens?.includes("TREE_NUTS") || false,
+        dairy: parseAllergens(item.allergens as string | null).includes("DAIRY"),
+        eggs: parseAllergens(item.allergens as string | null).includes("EGGS"),
+        fish: parseAllergens(item.allergens as string | null).includes("FISH"),
+        gluten: parseAllergens(item.allergens as string | null).includes("GLUTEN"),
+        peanuts: parseAllergens(item.allergens as string | null).includes("PEANUTS"),
+        soy: parseAllergens(item.allergens as string | null).includes("SOY"),
+        treeNuts: parseAllergens(item.allergens as string | null).includes("TREE_NUTS"),
       },
     },
   });
 
-  async function handleSubmit(values: z.infer<typeof formSchema>) {
+  async function handleSubmit(values: FormValues) {
     try {
+      // Transform the allergens object to array format
+      const transformedAllergens = transformAllergens(values.allergens);
+      
       await fetch("/api/edit-item", {
         method: "POST",
         body: JSON.stringify({
@@ -133,7 +173,7 @@ export function EditItemDialog({
             description: values.description,
             price: values.price,
             options: JSON.stringify(values.options),
-            allergens: JSON.stringify(values.allergens),
+            allergens: JSON.stringify(transformedAllergens),
             modifierGroups: selectedItems,
           },
         }),
@@ -162,16 +202,26 @@ export function EditItemDialog({
             title: "Failed to load items",
             variant: "destructive",
           });
-        } finally {
         }
       }
     };
     fetchItems();
-  }, [user?.id]);
+  }, [user?.id, toast]);
 
   useEffect(() => {
     setSelectedItems([...item.modifierGroups]);
-  }, [item]);
+  }, [item.modifierGroups]);
+
+  // Define the allergen fields for rendering
+  const allergenFields = [
+    { key: "dairy", label: "Dairy" },
+    { key: "eggs", label: "Eggs" },
+    { key: "fish", label: "Fish" },
+    { key: "gluten", label: "Gluten" },
+    { key: "peanuts", label: "Peanuts" },
+    { key: "soy", label: "Soy" },
+    { key: "treeNuts", label: "Tree Nuts" },
+  ] as const;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -204,7 +254,7 @@ export function EditItemDialog({
                       accept="image/*"
                       onChange={async (e) => {
                         const files = e.target.files;
-                        field.onChange(files || null);
+                        field.onChange(files ? files[0]?.name || "" : "");
                         if (!files?.[0]) return;
 
                         try {
@@ -227,7 +277,6 @@ export function EditItemDialog({
               )}
             />
 
-            {/* Keep all other form fields from your create form */}
             {/* Display Name */}
             <FormField
               control={form.control}
@@ -285,7 +334,7 @@ export function EditItemDialog({
                 open={selectingItems}
                 onOpenChange={() => setSelectingItems((prev) => !prev)}
               >
-                <DialogTrigger>
+                <DialogTrigger asChild>
                   <Button
                     variant={"default"}
                     className="w-full"
@@ -336,12 +385,11 @@ export function EditItemDialog({
                 </div>
               )}
               {selectedItems.map((item) => (
-                <div className="outline flex  rounded-md h-20 mt-4 outline-slate-200 outline-1 flex-row items-center justify-between">
+                <div key={item.id} className="outline flex rounded-md h-20 mt-4 outline-slate-200 outline-1 flex-row items-center justify-between">
                   <div className="flex flex-row items-center space-x-4 mx-5">
                     <p className="text-sm leading-none ">{item.name}</p>
                   </div>
                   <div className="flex flex-row items-center space-x-4 mx-5">
-                    {/* Add leading-none */}
                     <Button
                       onClick={(e) => {
                         e.preventDefault();
@@ -349,11 +397,10 @@ export function EditItemDialog({
                           prev.filter((i) => i.id !== item.id)
                         );
                       }}
-                      className="h-6 w-6 p-1 ml-2" // Increased size and added padding
+                      className="h-6 w-6 p-1 ml-2"
                       variant="outline"
                     >
                       <XIcon className="h-4 w-4" />
-                      {/* Set explicit icon size */}
                     </Button>
                   </div>
                 </div>
@@ -434,26 +481,25 @@ export function EditItemDialog({
             {/* Allergens Section */}
             <div className="space-y-4">
               <h3 className="font-medium">Allergens</h3>
-              {Object.entries(form.getValues().allergens).map(([allergen]) => (
+              {allergenFields.map(({ key, label }) => (
                 <FormField
-                  key={allergen}
+                  key={key}
                   control={form.control}
-                  name={`allergens.${allergen}`}
+                  // This is the key fix for the TypeScript error - using a properly typed key
+                  name={`allergens.${key}`}
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <FormLabel className="capitalize">
-                          {allergen.replace(/([A-Z])/g, " $1")}
+                          {label}
                         </FormLabel>
                         <FormDescription>
-                          {`Contains ${allergen
-                            .replace(/([A-Z])/g, " $1")
-                            .toLowerCase()}`}
+                          {`Contains ${label.toLowerCase()}`}
                         </FormDescription>
                       </div>
                       <FormControl>
                         <Switch
-                          checked={field.value ? true : false}
+                          checked={field.value}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>

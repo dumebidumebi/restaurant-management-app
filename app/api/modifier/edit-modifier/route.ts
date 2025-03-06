@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { stripe } from "@/lib/stripe";
 import { getAuth } from "@clerk/nextjs/server";
 import { Item, Modifier } from "@prisma/client";
 import { NextRequest } from "next/server";
@@ -8,7 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { userId } = getAuth(req);
-    const data : Modifier = body.data;
+    const data: Modifier = body.data;
 
     console.log(data);
 
@@ -30,6 +31,28 @@ export async function POST(req: NextRequest) {
       console.error("Failed to invalidate cache:", redisError);
     }
 
+    // Get existing modifier
+    const existingModifier = await prisma.modifier.findUnique({
+      where: { id: data.id, userId },
+    });
+
+    if (!existingModifier) {
+      return new Response(JSON.stringify({ message: "Modifier not found" }), {
+        status: 404,
+      });
+    }
+
+    let stripePriceId = existingModifier.stripePriceId;
+
+    // Handle price changes
+    if (data.price !== existingModifier.price) {
+      const newPrice = await stripe.prices.create({
+        product: existingModifier.stripeProductId!,
+        unit_amount: Math.round(data.price * 100),
+        currency: "usd",
+      });
+      stripePriceId = newPrice.id;
+    }
     // Create the new item
     // Create the new category with item connections
     await prisma.modifier.update({
@@ -42,11 +65,10 @@ export async function POST(req: NextRequest) {
         displayName: data.displayName,
         description: data.description,
         price: data.price,
-        imageUrl: data.imageUrl !== '' ? data.imageUrl : null,
+        imageUrl: data.imageUrl !== "" ? data.imageUrl : null,
         isAvailable: data.isAvailable,
-      }
+      },
     });
-
 
     // const newModifier = await prisma.modifier.create({
     //   data: {
@@ -61,7 +83,6 @@ export async function POST(req: NextRequest) {
     //     // availability omitted since not in sample data
     //   },
     // });
-
 
     return new Response(JSON.stringify({ response: "ok" }), {
       status: 201,

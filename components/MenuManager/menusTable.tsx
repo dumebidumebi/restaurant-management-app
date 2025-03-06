@@ -66,8 +66,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EditMenuDialog } from "./editMenuForm";
-import { Item, Menu } from "@prisma/client";
+import { Category, Item, Menu } from "@prisma/client";
 import Image from "next/image";
+
+// In EditMenuDialog component
+type MenuWithOptionalCategories = Menu & {
+  categories?: Category[];
+};
+
+// Then use MenuWithOptionalCategories as the type for item prop
 
 export function MenusTable({
   data,
@@ -92,7 +99,9 @@ export function MenusTable({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
-  const [editingItem, setEditingItem] = React.useState<Menu | null>(null);
+  const [editingItem, setEditingItem] = React.useState<
+    (Menu & { categories: Category[] }) | null
+  >(null);
 
   const columns: ColumnDef<Menu>[] = [
     {
@@ -167,7 +176,10 @@ export function MenusTable({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setEditingItem(item)}
+              onClick={() => {
+                // Type assertion to ensure categories exist
+                setEditingItem(item as Menu & { categories: Category[] });
+              }}
             >
               <Edit className="h-4 w-4" />
             </Button>

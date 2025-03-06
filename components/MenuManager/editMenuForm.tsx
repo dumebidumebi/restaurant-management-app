@@ -44,7 +44,7 @@ export function EditMenuDialog({
   onOpenChange,
   onSuccess,
 }: {
-  item: Menu;
+  item: Menu & { categories: Category[] }; // Explicitly include the items relation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -141,8 +141,8 @@ export function EditMenuDialog({
             <div className="border-slate-200 border-1 border-y py-8 ">
               <h3 className="font-medium mb-2">Categories</h3>
               <p className="text-gray-400 text-sm mb-2">
-                Cateries are groups of items. You might have a
-               category like "combos", "drinks", "sides".
+                Cateries are groups of items. You might have a category like
+                "combos", "drinks", "sides".
               </p>
 
               <Dialog

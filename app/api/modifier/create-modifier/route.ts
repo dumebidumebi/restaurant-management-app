@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { stripe } from "@/lib/stripe";
 import { getAuth } from "@clerk/nextjs/server";
 import { Item } from "@prisma/client";
 import { NextRequest } from "next/server";
@@ -36,17 +37,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-   
+    // Create Stripe product
+    const product = await stripe.products.create({
+      name: data.displayName,
+      description: data.description,
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: Math.round(data.price * 100),
+      currency: "usd",
+    });
     // Create the new category with item connections
     const newModifier = await prisma.modifier.create({
       data: {
         userId: userId,
-        name: data.displayName,        // Required field mapped from displayName
+        name: data.displayName, // Required field mapped from displayName
         displayName: data.displayName, // Optional display name
         description: data.description,
         price: data.price,
         imageUrl: data.imageUrl,
-        isAvailable: true,             // Explicitly set availability
+        isAvailable: true, // Explicitly set availability
+        stripeProductId: product.id,
+        stripePriceId: price.id,
         // minSelect/maxSelect omitted since not in sample data
         // availability omitted since not in sample data
       },

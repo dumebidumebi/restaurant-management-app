@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { stripe } from "@/lib/stripe";
 import { getAuth } from "@clerk/nextjs/server";
 import { ModifierGroup } from "@prisma/client";
 import { NextRequest } from "next/server";
@@ -40,9 +41,33 @@ export async function POST(req: NextRequest) {
       console.error("Failed to invalidate cache:", redisError);
     }
 
-    const  arr : ModifierGroup[] = data.modifierGroups
-    const arrayOfModifierGroupIds  =  arr?.map(item => ( item.id )) 
-   
+    const arr: ModifierGroup[] = data.modifierGroups;
+    const arrayOfModifierGroupIds = arr?.map((item) => item.id);
+
+    // Get existing item to compare prices
+    const existingItem = await prisma.item.findUnique({
+      where: { id: data.id, userId },
+    });
+
+    if (!existingItem) {
+      return new Response(JSON.stringify({ message: "Item not found" }), {
+        status: 404,
+      });
+    }
+
+    let stripePriceId = existingItem.stripePriceId;
+
+    // Check if price changed
+    if (data.price !== existingItem.price) {
+      // Create new Stripe price
+      const newPrice = await stripe.prices.create({
+        product: existingItem.stripeProductId!,
+        unit_amount: Math.round(data.price * 100),
+        currency: "usd",
+      });
+      stripePriceId = newPrice.id;
+    }
+
     const updatedItem = await prisma.item.update({
       where: {
         id: data.id, // You need to get the item ID from somewhere
@@ -59,7 +84,9 @@ export async function POST(req: NextRequest) {
         // Add other fields you want to update
         isAvailable: data.isAvailable,
         updatedAt: new Date(), // Track update timestamp
-        modifierGroups: arrayOfModifierGroupIds.length ? { set: arrayOfModifierGroupIds?.map((id: string) => ({ id })) }: undefined, 
+        modifierGroups: arrayOfModifierGroupIds.length
+          ? { set: arrayOfModifierGroupIds?.map((id: string) => ({ id })) }
+          : undefined,
       },
     });
 

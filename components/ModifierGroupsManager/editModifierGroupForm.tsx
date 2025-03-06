@@ -43,7 +43,7 @@ export function EditModifierGroupDialog({
   onOpenChange,
   onSuccess,
 }: {
-  item: ModifierGroup;
+  item: ModifierGroup & { modifiers: Modifier[] };
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;

@@ -11,13 +11,13 @@ import { Separator } from "../ui/separator";
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Item, Modifier } from "@prisma/client";
+import { Item, Modifier, ModifierGroup } from "@prisma/client";
 import { Skeleton } from "../ui/skeleton";
 import { ModifierGroupsTable } from "./modifierGroupsTable";
 import { CreateModifierGroupForm } from "./createModifierGroupForm";
 
-
-export async function getModifierGroups(userId: string) {
+// Define the return type for the API response
+export async function getModifierGroups(userId: string): Promise<ModifierGroupWithModifiers[]> {
   const response = await fetch("/api/modifier-group/get-modifier-group", {
     method: "POST",
     headers: {
@@ -32,10 +32,16 @@ export async function getModifierGroups(userId: string) {
 
   return response.json();
 }
+
+// Define the type with modifiers included
+export type ModifierGroupWithModifiers = ModifierGroup & {
+  modifiers: Modifier[];
+};
+
 export function ModifierGroupsManager() {
   const { user } = useUser();
   const { toast } = useToast();
-  const [items, setItems] = useState<Modifier[]>([]);
+  const [items, setItems] = useState<ModifierGroupWithModifiers[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -111,7 +117,7 @@ export function ModifierGroupsManager() {
     }
   };
 
-  const handleOptimisticCopy = async (item: Modifier) => {
+  const handleOptimisticCopy = async (item: ModifierGroupWithModifiers) => {
     const tempId = `copy-${Date.now()}`;
     const copiedItem = { ...item, id: tempId };
 
@@ -139,8 +145,8 @@ export function ModifierGroupsManager() {
     }
   };
 
-  const handleOptimisticEdit = async (updatedItem: Modifier) => {
-    const originalItems = items;
+  const handleOptimisticEdit = async (updatedItem: ModifierGroupWithModifiers) => {
+    const originalItems = [...items]; // Create a copy of the original items
 
     // Optimistic update
     setItems((prev) =>

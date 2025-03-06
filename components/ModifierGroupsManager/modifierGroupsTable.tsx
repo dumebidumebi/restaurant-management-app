@@ -68,6 +68,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { EditModifierGroupDialog } from "./editModifierGroupForm";
 import { Item, Modifier, ModifierGroup } from "@prisma/client";
 import Image from "next/image";
+import { ModifierGroupWithModifiers } from "./modifierGroupsManager";
 
 export function ModifierGroupsTable({
   data,
@@ -77,12 +78,12 @@ export function ModifierGroupsTable({
   onCopy,
   onEdit,
 }: {
-  data: ModifierGroup[];
+  data: ModifierGroupWithModifiers[];
   onUpdateSuccess?: () => void;
   onUpdateError?: (error: Error) => void;
   onDelete?: (itemId: string) => void;
-  onCopy?: (item: ModifierGroup) => void;
-  onEdit?: (item: ModifierGroup) => void;
+  onCopy?: (item: ModifierGroupWithModifiers) => void;
+  onEdit?: (item: ModifierGroupWithModifiers) => void;
 }) {
   const { user } = useUser();
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -92,9 +93,9 @@ export function ModifierGroupsTable({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
-  const [editingItem, setEditingItem] = React.useState<ModifierGroup | null>(null);
-
-  const columns: ColumnDef<ModifierGroup>[] = [
+  const [editingItem, setEditingItem] =
+    React.useState<ModifierGroupWithModifiers | null>(null);
+  const columns: ColumnDef<ModifierGroupWithModifiers>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -179,7 +180,14 @@ export function ModifierGroupsTable({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setEditingItem(item)}
+              onClick={() => {
+                // Check if the item has modifiers property, if not add an empty array
+                const itemWithModifiers = {
+                  ...row.original,
+                  modifiers: row.original.modifiers || [],
+                };
+                setEditingItem(itemWithModifiers);
+              }}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -312,7 +320,10 @@ export function ModifierGroupsTable({
           </Button>
           {editingItem && (
             <EditModifierGroupDialog
-              item={editingItem}
+              item={{
+                ...editingItem,
+                modifiers: editingItem.modifiers || [], // Ensure modifiers exists
+              }}
               open={!!editingItem}
               onOpenChange={(open) => !open && setEditingItem(null)}
               onSuccess={() => {

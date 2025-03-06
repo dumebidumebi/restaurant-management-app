@@ -39,7 +39,7 @@ export function EditCategoryForm({
   onOpenChange,
   onSuccess,
 }: {
-  category: Category;
+  category: Category  & { items: Item[] }; // Explicitly include the items relation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;

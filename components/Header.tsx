@@ -13,6 +13,8 @@ import HeaderMobile from "./header-mobile";
 import { Button } from "./ui/button";
 import logo from "@/images/chikin_logo.png";
 import Image from "next/image";
+import CartIcon from "./CartIcon";
+import { CartDrawer } from "./CartDrawer";
 
 function HeaderWeb() {
   const scrolled = useScroll(8);
@@ -41,12 +43,13 @@ function HeaderWeb() {
         <div>
           <div className="pt-8 flex space-x-5  absolute right-10 mx-5 top-[8px] z-30">
             <div className="hidden sm:block">
-              <Link href={"/menu"}>
+              {/* <Link href={"/menu"}>
                 <Button variant={"secondary"}>Menu</Button>{" "}
-              </Link>
-              <Button variant={"secondary"}>Catering</Button>
-              <Button variant={"secondary"}>Careers</Button>
+              </Link> */}
+              {/* <Button variant={"secondary"}>Catering</Button>
+              <Button variant={"secondary"}>Careers</Button> */}
             </div>
+            <CartDrawer />
             <Link href={"/menu"}>
               <Button variant={"default"}>Order Online</Button>
             </Link>
