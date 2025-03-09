@@ -1,5 +1,6 @@
 "use client";
 import {
+  CheckoutProvider,
   EmbeddedCheckout,
   EmbeddedCheckoutProvider,
 } from "@stripe/react-stripe-js";
@@ -8,6 +9,10 @@ import { useEffect, useState } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { CheckoutForm } from "@/components/CheckoutForm";
+import EmailInput from "@/components/EmailInput";
+import TipComponent from "@/components/Tips";
+import OrderSummary from "@/components/OrderSummary";
 
 // Debug the environment variable
 console.log(
@@ -17,7 +22,9 @@ console.log(
 
 // Safe initialization
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, {
+      betas: ["custom_checkout_beta_5"],
+    })
   : null;
 
 export default function CheckoutPage() {
@@ -122,39 +129,32 @@ export default function CheckoutPage() {
   // Rest of your component remains the same...
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+    <div className="flex flex-col sm:flex-row justify-normal">
+      <div className="mx-auto p-4">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="my-10">
+          <TipComponent onTipChange={setTipAmount} />
         </div>
-      )}
 
-      {/* Tip Selection Component */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4">Add Tip</h3>
-        {/* ... */}
+        {/* Checkout Section */}
+
+        {isLoading && <div>Preparing checkout...</div>}
+        {!isLoading && clientSecret && stripePromise ? (
+          <div className="w-full min-h-[600px]">
+            <CheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+              <CheckoutForm />
+            </CheckoutProvider>
+          </div>
+        ) : !isLoading && !error ? (
+          <div>Loading checkout...</div>
+        ) : null}
       </div>
-
-      {/* Order Summary */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
-        {/* ... */}
-      </div>
-
-      {/* Checkout Section */}
-      {isLoading && <div>Preparing checkout...</div>}
-      {!isLoading && clientSecret && stripePromise ? (
-        <div className="w-full min-h-[600px]">
-          <EmbeddedCheckoutProvider
-            stripe={stripePromise}
-            options={{ clientSecret }}
-          >
-            <EmbeddedCheckout />
-          </EmbeddedCheckoutProvider>
-        </div>
-      ) : !isLoading && !error ? (
-        <div>Loading checkout...</div>
-      ) : null}
+      <OrderSummary tipAmount={tipAmount ? tipAmount : 0} />
     </div>
   );
 }

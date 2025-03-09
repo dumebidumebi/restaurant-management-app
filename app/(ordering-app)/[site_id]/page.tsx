@@ -4,9 +4,10 @@ import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SignInButton, SignOutButton } from "@clerk/nextjs";
 import { BANNER, MENU } from "@/constants";
-import banner from "@/images/banner-img.png";
+import banner from "@/images/banner-img_enhanced.png";
 import { ChevronRight, TextQuote } from "lucide-react";
 import { useRouter } from "next/router";
+import MenuPage from "./menu/page";
 
 export default function Home() {
   const allItems = Object.values(MENU.categories).flat();
@@ -30,39 +31,38 @@ export default function Home() {
             ></div>
           </div>
           <div>
-            <div className="mx-auto max-w-6xl px-6 pt-5 lg:px-8">
-              <div className=" flow-root ">
-                <div className=" relative -m-2 rounded-xl bg-gray-900//5 p-2 ring-1 h-[500px] ring-inset ring-gray-900/10 lg:-m-4 lg:rounded-2xl lg:p-4">
-                  <Image
-                    src={banner}
-                    alt="banner"
-                    fill
-                    quality={100}
-                    // width={0}
-                    // height={0}
-                    sizes="100vw"
-                    className="rounded-xl object-cover filter saturate-[1.3] brightness-75"
-                  />
-                  <div className="absolute bottom-8 left-8">
-                    <div className="flex flex-row">
-                      <TextQuote className="mb-8 mr-5 text-white" />
-                      <span className="text-white">
-                        Best Rotisserie Chicken in town{" "}
-                      </span>
+            <div className=" max-w-4xl">
+              <div className="flow-root">
+                <div className="relative -m-2 rounded-xl bg-gray-900//5 p-2  ring-gray-900/10 lg:-m-4 lg:rounded-2xl lg:p-4">
+                  <div className="relative w-screen h-[80vh]  overflow-hidden">
+                    <Image
+                      src={banner}
+                      alt="banner"
+                      fill
+                      quality={100}
+                      className="object-cover filter saturate-[1.4] brightness-75"
+                    />
+                    <div className="absolute bottom-8 left-8">
+                      <div className="flex flex-row">
+                        <TextQuote className="mb-8 mr-5 text-white" />
+                        <span className="text-white">
+                          Best Rotisserie Chicken in town{" "}
+                        </span>
+                      </div>
+                      <h1 className="text-white mb-8 font-medium text-3xl sm:text-5xl">
+                        Delicious Peruvian Chicken
+                      </h1>
+
+                      <Link href={"/menu"}>
+                        <Button
+                          size={"lg"}
+                          color=""
+                          className="font-semibold py-2 px-4 rounded-md shadow-md"
+                        >
+                          Order Online <ChevronRight />
+                        </Button>
+                      </Link>
                     </div>
-                    <h1 className="text-white mb-8 font-medium text-3xl sm:text-5xl ">
-                      Delicious Peruvian Chicken
-                    </h1>
-                    
-                    <Link href={"/menu"}>
-                      <Button
-                        size={"lg"}
-                        color=""
-                        className=" font-semibold py-2 px-4 rounded-md shadow-md"
-                      >
-                        Order Online <ChevronRight />
-                      </Button>
-                    </Link>
                   </div>
                 </div>
               </div>
@@ -83,17 +83,17 @@ export default function Home() {
         </div>
       </div>
       {/* feature section */}
-      <div className="mx-auto mb-32 mt-32 max-w-5xl sm:mt-32">
+      <div className="mb-32 mt-32 w-full sm:mt-32">
         <div className="mb-12 px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl sm:text-center">
+          <div className=" max-w-2xl ">
             <h2 className="mt-2 font-bold text-4xl text-gray-900 sm:text-5xl">
               Just Chik'n
             </h2>
-            <p className="mt-4 text-lg text-gray-600">Our Menu</p>
+            <p className="mt-4 text-xl text-gray-600">Our Menu</p>
           </div>
         </div>
         {/* steps */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+        {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
           {allItems.map((item) => (
             <div
               key={item.id}
@@ -112,12 +112,13 @@ export default function Home() {
               </h3>
             </div>
           ))}
-        </div>
-        <div className="mx-auto max-w-6xl px-6 lg:px-8">
+        </div> */}
+        <MenuPage />
+        {/* <div className="mx-auto max-w-6xl px-6 lg:px-8">
           <div className="mt-16 flow-root sm:mt-24">
             <div className="-m-2 rounded-xl bg-gray-900//5 p-2 ring-1 ring-inset ring-gray-900/10 lg:-m-4 lg:rounded-2xl lg:p-4"></div>
           </div>
-        </div>
+        </div> */}
       </div>
     </>
   );

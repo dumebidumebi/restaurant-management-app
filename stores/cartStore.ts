@@ -104,9 +104,14 @@ export const useCartStore = create<CartStore>()(
       },
 
       totalItems: () => get().cartItems.reduce((sum, item) => sum + item.quantity, 0),
-      totalPrice: () => get().cartItems.reduce(
-        (sum, item) => sum + item.price * item.quantity, 0
-      )
+      totalPrice: () => {
+        const total = get().cartItems.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
+        return total || 0; // Ensure it always returns a number
+      },
+      
     }),
     {
       name: 'cart-storage',
