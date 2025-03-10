@@ -43,8 +43,9 @@ const items = [
     subItems: [
       { title: "Menu", url: "/store/menu" },
       { title: "Orders", url: "/store/orders" },
+      { title: "Order History", url: "/store/order-history" },
       { title: "Locations", url: "/store/locations" },
-      { title: "Reservations", url: "/store/reservations" },
+      // { title: "Reservations", url: "/store/reservations" },
     ],
   },
   {

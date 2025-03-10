@@ -36,6 +36,8 @@ model Store {
   site_logo          String?
   site_cover_image   String?
   site_custom_domain String?
+  orders             Order[]
+  carts              Cart[]     @relation("StoreToCart")
 }
 
 model Location {
@@ -97,7 +99,7 @@ model Item {
   updatedAt       DateTime        @updatedAt
   userId          String
   user            User            @relation(fields: [userId], references: [id])
-  stripeProductId String? 
+  stripeProductId String?
   stripePriceId   String?
 }
 
@@ -117,23 +119,23 @@ model ModifierGroup {
 }
 
 model Modifier {
-  id             String          @id @default(uuid())
-  name           String
-  price          Float
-  imageUrl       String?
-  displayName    String?
-  description    String?
-  minSelect      Int?
-  maxSelect      Int?
-  modifierGroups ModifierGroup[] @relation("ModifierGroupModifiers")
-  isAvailable    Boolean?        @default(true) // Simple availability flag
-  availability   Json? // JSON for availability settings (e.g., Sunday-Saturday)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  userId         String
-  user           User            @relation(fields: [userId], references: [id])
-  stripeProductId  String?         
-  stripePriceId    String? 
+  id              String          @id @default(uuid())
+  name            String
+  price           Float
+  imageUrl        String?
+  displayName     String?
+  description     String?
+  minSelect       Int?
+  maxSelect       Int?
+  modifierGroups  ModifierGroup[] @relation("ModifierGroupModifiers")
+  isAvailable     Boolean?        @default(true) // Simple availability flag
+  availability    Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  stripeProductId String?
+  stripePriceId   String?
 }
 
 enum ItemOptions {
@@ -150,6 +152,115 @@ enum ItemAllergens {
   PEANUTS
   SOY
   TREE_NUTS
+}
+
+enum OrderStatus {
+  NEW
+  ACCEPTED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SCHEDULED
+  COURIER_ASSIGNED
+  COURIER_ARRIVED
+  PICKED_UP
+  DELIVERED
+  FAILED
+}
+
+model Order {
+  stripeCheckoutSessionId String 
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  status          OrderStatus @default(NEW)
+  items           OrderItem[]
+  subtotal        Float
+  tax             Float
+  deliveryFee     Float?
+  tip             Float?
+  total           Float
+  customerName    String
+  customerPhone   String?
+  customerEmail   String?
+  customerAddress String?
+  notes           String?
+
+  // Preparation & delivery fields
+  prepTime             Int? // Preparation time in minutes
+  deliveryQuoteId      String? // DoorDash quote ID
+  deliveryId           String? // DoorDash delivery ID
+  deliveryStatus       DeliveryStatus?
+  deliveryPickupTime   DateTime?
+  estimatedPickupTime  DateTime?
+  estimatedDropoffTime DateTime?
+  courierName          String?
+
+  // Payment tracking
+  paymentIntentId String? // Stripe payment intent ID
+  paymentStatus   String? // Stripe payment status
+
+  // Relationships
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  name      String
+  quantity  Int
+  price     Float
+  modifiers Json? // Array of selected modifiers
+  notes     String?
+  itemId    String? // Reference to original item if available
+
+  // Relationships
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cart {
+  id              String     @id @default(uuid())
+  items           CartItem[]
+  customerName    String?
+  customerPhone   String?
+  customerEmail   String?
+  deliveryAddress String?
+  deliveryFee     Float?
+  storeId         String
+  store           Store      @relation("StoreToCart", fields: [storeId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  name      String
+  quantity  Int
+  price     Float
+  modifiers Json? // Array of selected modifiers
+  notes     String?
+  itemId    String? // Reference to original item 
+
+  // Relationships
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 //sample settings

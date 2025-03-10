@@ -1,10 +1,10 @@
-import React from "react";
-import { useCheckout } from "@stripe/react-stripe-js";
-import { Input } from "./ui/input";
+import React from 'react';
+import {useCheckout} from '@stripe/react-stripe-js';
+import { Input } from './ui/input';
 
 const EmailInput = () => {
   const checkout = useCheckout();
-  const [email, setEmail] = React.useState("");
+  const [email, setEmail] = React.useState('');
   const [error, setError] = React.useState(null);
 
   const handleBlur = () => {
@@ -12,7 +12,7 @@ const EmailInput = () => {
       if (result.error) {
         setError(result.error);
       }
-    });
+    })
   };
 
   const handleChange = (e) => {
@@ -22,9 +22,9 @@ const EmailInput = () => {
   return (
     <div>
       <Input
-        type="text"
+        type="email"
         value={email}
-        onChange={ e =>  {handleChange}
+        onChange={handleChange}
         onBlur={handleBlur}
       />
       {error && <div>{error.message}</div>}

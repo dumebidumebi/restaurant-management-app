@@ -42,14 +42,14 @@ export default function Home() {
                       quality={100}
                       className="object-cover filter saturate-[1.4] brightness-75"
                     />
-                    <div className="absolute bottom-8 left-8">
+                    <div className="absolute bottom-24 left-8">
                       <div className="flex flex-row">
                         <TextQuote className="mb-8 mr-5 text-white" />
                         <span className="text-white">
                           Best Rotisserie Chicken in town{" "}
                         </span>
                       </div>
-                      <h1 className="text-white mb-8 font-medium text-3xl sm:text-5xl">
+                      <h1 className="text-white mb-8 font-bold text-3xl sm:text-5xl">
                         Delicious Peruvian Chicken
                       </h1>
 

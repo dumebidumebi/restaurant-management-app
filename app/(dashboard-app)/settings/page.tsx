@@ -269,7 +269,7 @@ export default function SettingsForm() {
 
   if (isLoading) {
     return (
-      <div className="px-20 space-y-8 ">
+      <div className="px-20  py-10 space-y-8 ">
         <Progress value={progress} className="w-full mb-0" />
         <Card>
           <CardHeader>
@@ -309,7 +309,7 @@ export default function SettingsForm() {
     );
   } else {
     return (
-      <div className="px-20 pb-32">
+      <div className="px-20  py-10 pb-32">
         <Progress value={progress} className="w-full mb-8" />
 
         <Form {...form}>

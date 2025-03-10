@@ -127,6 +127,20 @@ export default function CheckoutPage() {
   }, [cartItems, tipAmount]);
 
   // Rest of your component remains the same...
+  const appearance = {
+    theme: "stripe",
+
+    variables: {
+      colorPrimary: "#0570de",
+      colorBackground: "#ffffff",
+      colorText: "#30313d",
+      colorDanger: "#df1b41",
+      fontFamily: "Inter, system-ui, sans-serif",
+      spacingUnit: "2px",
+      borderRadius: "4px",
+      // See all possible variables below
+    },
+  };
 
   return (
     <div className="flex flex-col sm:flex-row justify-normal">
@@ -146,9 +160,16 @@ export default function CheckoutPage() {
         {isLoading && <div>Preparing checkout...</div>}
         {!isLoading && clientSecret && stripePromise ? (
           <div className="w-full min-h-[600px]">
-            <CheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
-              <CheckoutForm />
-            </CheckoutProvider>
+            {/* <CheckoutProvider stripe={stripePromise} options={{ clientSecret }}> */}
+            {/* <CheckoutForm /> */}
+
+            {/* </CheckoutProvider> */}
+            <EmbeddedCheckoutProvider
+              stripe={stripePromise}
+              options={{ clientSecret }}
+            >
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
           </div>
         ) : !isLoading && !error ? (
           <div>Loading checkout...</div>

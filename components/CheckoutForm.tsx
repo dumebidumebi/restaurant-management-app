@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { PaymentElement, useCheckout } from "@stripe/react-stripe-js";
+import { AddressElement, PaymentElement, useCheckout } from "@stripe/react-stripe-js";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { ChevronRight, ChevronRightCircle } from "lucide-react";
 import TipComponent from "./Tips";
+import EmailInput from "./EmailInput";
 
 export const CheckoutForm = () => {
   const checkout = useCheckout();
@@ -105,7 +106,7 @@ export const CheckoutForm = () => {
             <label htmlFor="email" className="block mb-1 font-medium">
               Email address
             </label>
-            <Input
+            {/* <Input
               id="email"
               name="email"
               type="email"
@@ -114,9 +115,12 @@ export const CheckoutForm = () => {
               onBlur={handleEmailBlur}
               placeholder="Email address"
               className="w-full p-3"
-            />
+            /> */}
+            <EmailInput/>
           </div>
-
+          <div>
+          <AddressElement options={{mode: 'billing'}}/>
+          </div>
           <div className="space-y-2 mt-4">
             <div className="flex items-center space-x-2">
               <Checkbox

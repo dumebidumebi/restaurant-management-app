@@ -65,7 +65,7 @@ export default function MenuPage() {
     }
   };
   return (
-    <div className="flex flex-col min-h-screen min-w-max mx-16">
+    <div className="flex flex-col min-h-screen min-w-max  my-5 mx-5">
       <h1 className="text-2xl font-bold ">Menu</h1>
       <p className="font-light">
         Set up your menus for online and mobile ordering.

@@ -2,7 +2,7 @@ import "server-only";
 
 import Stripe from "stripe";
 
-function stripeSecretKey() {
+export function stripeSecretKey() {
   if (process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY) {
     return process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY;
   } else throw new Error("stripe not defined");

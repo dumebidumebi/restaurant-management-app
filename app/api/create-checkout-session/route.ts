@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     console.log("line_items:", line_items);
 
     const session = await stripe.checkout.sessions.create({
-      ui_mode: "custom",
+      ui_mode: "embedded", //custom for sutom pages
       line_items: lineItems, // Pass lineItems directly
       mode: "payment",
       automatic_tax: { enabled: true },

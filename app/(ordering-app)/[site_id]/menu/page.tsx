@@ -25,7 +25,7 @@ import {
 import { useParams } from "next/navigation";
 import { useCartStore } from "@/stores/cartStore";
 import { Checkbox } from "@/components/ui/checkbox";
-
+import logo from "@/images/chikin_logo.png";
 export async function getSiteMenu(storeId: string) {
   const response = await fetch("/api/get-store-menu", {
     method: "POST",
@@ -69,7 +69,18 @@ export default function MenuPage() {
 
   // If the menu is not yet loaded, show a loading state
   if (!siteMenu) {
-    return <div>Loading...</div>;
+    return (
+      <div className="w-full h-full flex flex-col justify-center items-center content-center my-44">
+        {" "}
+        <Image
+          src={logo}
+          alt={"logo"}
+          width={500}
+          height={500}
+          className=" rounded-t-lg object-cover"
+        />
+      </div>
+    );
   }
 
   return (
