@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest, { params }) {
-  const { id } = params;
+  const { id } = await params;
   
   try {
     const body = await request.json();

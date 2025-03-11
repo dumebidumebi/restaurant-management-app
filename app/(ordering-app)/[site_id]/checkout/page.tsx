@@ -1,24 +1,15 @@
 "use client";
 import {
-  CheckoutProvider,
   EmbeddedCheckout,
   EmbeddedCheckoutProvider,
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useCartStore } from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { CheckoutForm } from "@/components/CheckoutForm";
-import EmailInput from "@/components/EmailInput";
 import TipComponent from "@/components/Tips";
 import OrderSummary from "@/components/OrderSummary";
-
-// Debug the environment variable
-console.log(
-  "Stripe key available:",
-  Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-);
 
 // Safe initialization
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -33,8 +24,9 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | null>(null);
-  const [customTip, setCustomTip] = useState("");
-  const [tipType, setTipType] = useState<"percent" | "fixed">("percent");
+  const [customerAddress, setCustomerAddress] = useState<string>("");
+  const [deliveryQuote, setDeliveryQuote] = useState<any>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
   // Check if Stripe is properly initialized
@@ -46,7 +38,60 @@ export default function CheckoutPage() {
     }
   }, []);
 
-  // Calculate the subtotal (total price of items + modifiers)
+  // Poll for fresh DoorDash quotes
+  const startQuotePolling = () => {
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Set new polling interval (5 minutes = 300000ms)
+    pollingIntervalRef.current = setInterval(refreshQuote, 300000);
+  };
+
+  const stopQuotePolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  const refreshQuote = async () => {
+    try {
+      const existingQuote = sessionStorage.getItem("deliveryQuote");
+      if (!existingQuote) return;
+
+      const parsedQuote = JSON.parse(existingQuote);
+      
+      console.log("Refreshing DoorDash quote...");
+      
+      // Create a new quote with the same parameters
+      const response = await fetch("/api/doordash/create-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cartItems,
+          customerAddress: customerAddress || parsedQuote.customerAddress,
+        }),
+      });
+
+      if (response.ok) {
+        const newQuoteData = await response.json();
+        setDeliveryQuote(newQuoteData);
+        sessionStorage.setItem("deliveryQuote", JSON.stringify({
+          ...newQuoteData,
+          customerAddress: customerAddress || parsedQuote.customerAddress
+        }));
+        console.log("DoorDash quote refreshed successfully", newQuoteData);
+      } else {
+        console.error("Failed to refresh quote:", await response.text());
+      }
+    } catch (error) {
+      console.error("Failed to refresh delivery quote:", error);
+    }
+  };
+
+  // Calculate the subtotal
   const subtotal = cartItems.reduce((sum, item) => {
     const itemTotal = item.price * item.quantity;
     const modifiersTotal =
@@ -57,18 +102,63 @@ export default function CheckoutPage() {
     return sum + itemTotal + modifiersTotal;
   }, 0);
 
-  // Calculate the total (subtotal + tip)
+  // Calculate the total
   const total = subtotal + (tipAmount || 0);
 
+  // Create initial DoorDash quote
+  useEffect(() => {
+    const createInitialQuote = async () => {
+      if (!cartItems.length) return;
+      
+      try {
+        console.log("Creating initial DoorDash quote...");
+        
+        const response = await fetch("/api/doordash/create-quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: cartItems,
+            customerAddress: customerAddress,
+          }),
+        });
+
+        if (response.ok) {
+          const quoteData = await response.json();
+          setDeliveryQuote(quoteData);
+          sessionStorage.setItem("deliveryQuote", JSON.stringify({
+            ...quoteData,
+            customerAddress
+          }));
+          console.log("Initial DoorDash quote created:", quoteData);
+          
+          // Start polling to keep quote alive
+          startQuotePolling();
+        } else {
+          console.error("Failed to create quote:", await response.text());
+        }
+      } catch (error) {
+        console.error("Failed to create delivery quote:", error);
+      }
+    };
+
+    createInitialQuote();
+
+    return () => {
+      // Clean up polling when component unmounts
+      stopQuotePolling();
+    };
+  }, [cartItems, customerAddress]);
+
+  // Initialize Stripe checkout session
   useEffect(() => {
     const initializeCheckout = async () => {
-      if (!stripePromise) return;
+      if (!stripePromise || !cartItems.length) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        // Prepare line items in a format the backend expects
+        // Prepare line items
         const lineItems = [];
 
         // Add cart items
@@ -77,14 +167,13 @@ export default function CheckoutPage() {
             throw new Error(`Missing Stripe Price ID for item: ${item.name}`);
           }
 
-          // Add main item
           lineItems.push({
             price: item.stripePriceId,
             quantity: item.quantity,
           });
         }
 
-        // Add tip as a separate line item if applicable
+        // Add tip
         if (tipAmount && tipAmount > 0) {
           lineItems.push({
             price_data: {
@@ -98,10 +187,14 @@ export default function CheckoutPage() {
           });
         }
 
+        // Include the delivery quote information
         const response = await fetch("/api/create-checkout-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lineItems }),
+          body: JSON.stringify({ 
+            lineItems,
+            deliveryQuote: deliveryQuote
+          }),
         });
 
         if (!response.ok) {
@@ -121,15 +214,12 @@ export default function CheckoutPage() {
       }
     };
 
-    if (cartItems.length > 0) {
-      initializeCheckout();
-    }
-  }, [cartItems, tipAmount]);
+    initializeCheckout();
+  }, [cartItems, tipAmount, deliveryQuote]);
 
-  // Rest of your component remains the same...
+  // Component appearance
   const appearance = {
     theme: "stripe",
-
     variables: {
       colorPrimary: "#0570de",
       colorBackground: "#ffffff",
@@ -138,7 +228,6 @@ export default function CheckoutPage() {
       fontFamily: "Inter, system-ui, sans-serif",
       spacingUnit: "2px",
       borderRadius: "4px",
-      // See all possible variables below
     },
   };
 
@@ -151,19 +240,37 @@ export default function CheckoutPage() {
           </div>
         )}
 
+        {/* Address input for delivery */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Delivery Address
+          </label>
+          <input
+            type="text"
+            value={customerAddress}
+            onChange={(e) => setCustomerAddress(e.target.value)}
+            className="w-full p-2 border rounded"
+            placeholder="Enter your delivery address"
+          />
+        </div>
+
         <div className="my-10">
           <TipComponent onTipChange={setTipAmount} />
         </div>
 
-        {/* Checkout Section */}
+        {/* Display delivery quote information if available */}
+        {deliveryQuote && (
+          <div className="bg-blue-50 p-3 rounded mb-4">
+            <h3 className="font-medium">Delivery Quote</h3>
+            <p>Fee: ${(deliveryQuote.fee / 100).toFixed(2)}</p>
+            <p className="text-xs text-gray-500">ID: {deliveryQuote.id}</p>
+          </div>
+        )}
 
+        {/* Checkout Section */}
         {isLoading && <div>Preparing checkout...</div>}
         {!isLoading && clientSecret && stripePromise ? (
           <div className="w-full min-h-[600px]">
-            {/* <CheckoutProvider stripe={stripePromise} options={{ clientSecret }}> */}
-            {/* <CheckoutForm /> */}
-
-            {/* </CheckoutProvider> */}
             <EmbeddedCheckoutProvider
               stripe={stripePromise}
               options={{ clientSecret }}
@@ -175,7 +282,10 @@ export default function CheckoutPage() {
           <div>Loading checkout...</div>
         ) : null}
       </div>
-      <OrderSummary tipAmount={tipAmount ? tipAmount : 0} />
+      <OrderSummary 
+        tipAmount={tipAmount ? tipAmount : 0} 
+        deliveryFee={deliveryQuote ? deliveryQuote.fee / 100 : 0}
+      />
     </div>
   );
 }

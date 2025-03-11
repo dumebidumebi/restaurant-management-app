@@ -6,7 +6,7 @@ import Stripe from "stripe";
 export async function POST(req: Request) {
   try {
     const { lineItems } = await req.json();
-    console.log("line items:", lineItems);
+   
 
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
 
@@ -29,7 +29,6 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log("line_items:", line_items);
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded", //custom for sutom pages
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
       return_url: "http://dumebi.localhost:3000",
     });
 
-    console.log("Created Checkout Session:", session);
+   
 
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (error) {

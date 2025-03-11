@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export async function POST(request:NextRequest, { params }) {
-  const { id } = params;
+  const { id } = await params;
   
   try {
     // Fetch the order to be printed

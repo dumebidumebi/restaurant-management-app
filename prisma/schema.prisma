@@ -174,26 +174,27 @@ enum DeliveryStatus {
 }
 
 model Order {
-  stripeCheckoutSessionId String 
-  id              String      @id @default(uuid())
-  orderNumber     String      @unique
-  status          OrderStatus @default(NEW)
-  items           OrderItem[]
-  subtotal        Float
-  tax             Float
-  deliveryFee     Float?
-  tip             Float?
-  total           Float
-  customerName    String
-  customerPhone   String?
-  customerEmail   String?
-  customerAddress String?
-  notes           String?
+  stripeCheckoutSessionId String
+  id                      String      @id @default(uuid())
+  orderNumber             String      @unique
+  status                  OrderStatus @default(NEW)
+  items                   OrderItem[]
+  subtotal                Float
+  tax                     Float
+  deliveryFee             Float?
+  tip                     Float?
+  total                   Float
+  customerName            String
+  customerPhone           String?
+  customerEmail           String?
+  customerAddress         String?
+  notes                   String?
 
   // Preparation & delivery fields
-  prepTime             Int? // Preparation time in minutes
-  deliveryQuoteId      String? // DoorDash quote ID
-  deliveryId           String? // DoorDash delivery ID
+  prepTime        Int? // Preparation time in minutes
+  deliveryQuoteId String? // DoorDash quote ID
+  deliveryId      String? @default(uuid()) // DoorDash delivery ID
+
   deliveryStatus       DeliveryStatus?
   deliveryPickupTime   DateTime?
   estimatedPickupTime  DateTime?
@@ -211,6 +212,15 @@ model Order {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  doordashTrackingUrl  String?
+  doordashFee          Float?
+  doordashStatus       String?
+  dasherName           String?
+  dasherPhone          String?
+  pickupTimeEstimated  DateTime?
+  dropoffTimeEstimated DateTime?
+  supportReference     String?
 }
 
 model OrderItem {
