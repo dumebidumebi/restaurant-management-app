@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from "uuid";
 
 export async function POST(req: NextRequest) {
+  const body = await req.json()
+  const dropoff_address = body.dropoff_address
   try {
     // Generate a unique ID for this delivery
     const externalDeliveryId = uuidv4();
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
       pickup_address: "376 Jefferson Rd, Rochester, NY, 14623",
       pickup_business_name: "Your Restaurant Name",
       pickup_phone_number: "+15855551234",
-      dropoff_address: "1000 E Henrietta Rd, Rochester, NY, 14623",
+      dropoff_address: dropoff_address,
       dropoff_phone_number: "+16179592773",
       order_value: 2000,
       locale: "en-US",

@@ -34,9 +34,7 @@ export async function POST(req: NextRequest) {
       const customerEmail = checkoutSession.customer_details?.email || "";
       const customerName = checkoutSession.customer_details?.name || "";
       const customerPhone = checkoutSession.customer_details?.phone || "";
-      const customerAddress =
-        checkoutSession.customer_details?.address?.line1 ||
-        "1000 E Henrietta Rd, Rochester, NY, 14623";
+      const customerAddress = checkoutSession.metadata?.dropoff_address || "";
       const subtotal = checkoutSession.amount_subtotal || 0;
       const tax = checkoutSession.total_details?.amount_tax || 0;
       const total = checkoutSession.amount_total || 0;
@@ -90,11 +88,11 @@ export async function POST(req: NextRequest) {
       const payload = {
         external_delivery_id: uuidv4(),
         pickup_address: "376 Jefferson Rd, Rochester, NY, 14623",
-        pickup_business_name: "Your Restaurant Name",
+        pickup_business_name: "Just Chik'n",
         pickup_phone_number: "+15855551234",
-        dropoff_address: "1000 E Henrietta Rd, Rochester, NY, 14623",
+        dropoff_address: customerAddress,
         dropoff_phone_number: "+16179592773",
-        order_value: 2000,
+        order_value: total,
         locale: "en-US",
         pickup_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       };
@@ -125,6 +123,7 @@ export async function POST(req: NextRequest) {
           doordashStatus: response.data.delivery_status,
           pickupTimeEstimated: response.data.pickup_time_estimated,
           dropoffTimeEstimated: response.data.dropoff_time_estimated,
+          
         },
         include: {
           items: true,

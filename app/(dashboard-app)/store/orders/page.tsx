@@ -52,6 +52,7 @@ interface Order {
   dasherPhone?: string;
   pickup_time_estimated?: string;
   dropoff_time_estimated?: string;
+  doordashStatus?: string;
   deliveryId?: string;
   notes?: string;
   courierDetail?: {
@@ -74,10 +75,9 @@ export default function OrdersPage() {
   // Group orders by status
   const groupedOrders = {
     new: orders.filter((order) => order.status === "NEW"),
-    inProgress: orders.filter(
-      (order) => order.status === "ACCEPTED" || order.status === "PREPARING"
+    inProgress: orders.filter((order) =>
+      ["ACCEPTED", "PREPARING", "READY"].includes(order.status)
     ),
-    ready: orders.filter((order) => order.status === "READY"),
     completed: orders.filter((order) => order.status === "COMPLETED"),
   };
 
@@ -146,6 +146,19 @@ export default function OrdersPage() {
   const handleAcceptOrder = async (prepTime: number) => {
     if (!activeOrder) return;
 
+    const originalOrder = { ...activeOrder }; // Store original order
+    const originalOrders = [...orders]; // Store original orders
+
+    // Optimistically update the UI
+    const updatedOrder = { ...activeOrder, status: "ACCEPTED" };
+    setActiveOrder(updatedOrder);
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === activeOrder.id ? updatedOrder : order
+      )
+    );
+    setShowPrepTimeDialog(false);
+
     try {
       await fetch(`/api/orders/${activeOrder.id}/accept`, {
         method: "POST",
@@ -154,28 +167,60 @@ export default function OrdersPage() {
       });
 
       await fetch(`/api/orders/${activeOrder.id}/print`, { method: "POST" });
-      setShowPrepTimeDialog(false);
-      fetchOrders();
     } catch (error) {
       console.error("Failed to accept order:", error);
+
+      // Revert the UI on error
+      setActiveOrder(originalOrder);
+      setOrders(originalOrders);
+      // Optionally, display an error message to the user
+      alert("Failed to accept order.  Please try again.");
     }
   };
 
   const handleMarkReady = async (orderId: string) => {
+    const originalOrder = { ...activeOrder! }; // Store original order
+    const originalOrders = [...orders]; // Store original orders
+
+    // Optimistically update the UI
+    const updatedOrder = { ...activeOrder!, status: "READY" };
+    setActiveOrder(updatedOrder);
+    setOrders((prevOrders) =>
+      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order))
+    );
+
     try {
       await fetch(`/api/orders/${orderId}/ready`, { method: "POST" });
-      fetchOrders();
     } catch (error) {
       console.error("Failed to mark order ready:", error);
+
+      // Revert the UI on error
+      setActiveOrder(originalOrder);
+      setOrders(originalOrders);
+      alert("Failed to mark order as ready. Please try again.");
     }
   };
 
   const handleHandOff = async (orderId: string) => {
+    const originalOrder = { ...activeOrder! }; // Store original order
+    const originalOrders = [...orders]; // Store original orders
+
+    // Optimistically update the UI
+    const updatedOrder = { ...activeOrder!, status: "COMPLETED" };
+    setActiveOrder(updatedOrder);
+    setOrders((prevOrders) =>
+      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order))
+    );
+
     try {
       await fetch(`/api/orders/${orderId}/complete`, { method: "POST" });
-      fetchOrders();
     } catch (error) {
       console.error("Failed to complete order:", error);
+
+      // Revert the UI on error
+      setActiveOrder(originalOrder);
+      setOrders(originalOrders);
+      alert("Failed to complete order. Please try again.");
     }
   };
 
@@ -189,12 +234,15 @@ export default function OrdersPage() {
 
   const getDeliveryStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
-    if (statusLower.includes("pending")) return "bg-indigo-100 text-indigo-800";
+    if (statusLower.includes("assigned"))
+      return "bg-yellow-100 text-yellow-800";
+    if (statusLower.includes("arriving"))
+      return "bg-indigo-100 text-indigo-800";
     if (statusLower.includes("picked_up")) return "bg-blue-100 text-blue-800";
-    if (statusLower.includes("delivered")) return "bg-green-100 text-green-800";
+    if (statusLower.includes("dropp")) return "bg-green-100 text-green-800";
     if (statusLower.includes("scheduled"))
       return "bg-yellow-100 text-yellow-800";
-    if (statusLower.includes("courier")) return "bg-purple-100 text-purple-800";
+    if (statusLower.includes("failed")) return "bg-red-100 text-red-800";
     return "bg-gray-100 text-gray-800";
   };
 
@@ -267,7 +315,7 @@ export default function OrdersPage() {
       />
 
       {/* Header */}
-      <div className="bg-white p-3 flex items-center border-b">
+      <div className="bg-white p-3 flex items-center border-b relative top-0">
         <div className="flex-1">
           <div className="font-bold text-lg">
             Orders <ChevronDown className="inline h-4 w-4" />
@@ -298,10 +346,14 @@ export default function OrdersPage() {
         onValueChange={setActiveTab}
         className="w-full bg-white mb-4"
       >
-        <TabsList className="grid grid-cols-4 pb-6 px-2">
+        <TabsList className="grid grid-cols-3 pb-6 px-2">
           {Object.entries(groupedOrders).map(([tab, tabOrders]) => (
             <TabsTrigger key={tab} value={tab} className="relative">
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "new"
+                ? "New"
+                : tab === "inProgress"
+                ? "In Progress"
+                : "Completed"}
               <Badge className="ml-1 bg-gray-200 text-gray-800 hover:bg-gray-200">
                 {tabOrders.length}
               </Badge>
@@ -319,12 +371,16 @@ export default function OrdersPage() {
       {/* Main Content */}
       <div className="flex flex-1 relative">
         {/* Left Panel - Order List */}
-        <div className="w-1/3 border-r overflow-y-scroll h-full bg-white">
+
+        <div className="w-1/3 border-r overflow-y-scroll h-screen bg-white">
           {groupedOrders[activeTab as keyof typeof groupedOrders].length ===
           0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Package className="h-12 w-12 mb-4" />
-              <p>No {activeTab} orders</p>
+              <p>
+                No {activeTab === "inProgress" ? "in progress" : activeTab}{" "}
+                orders
+              </p>
             </div>
           ) : (
             <div className="divide-y">
@@ -356,23 +412,6 @@ export default function OrdersPage() {
                       <div>
                         <div className="flex items-center text-sm font-bold gap-2">
                           #{order.orderNumber}
-                          <Badge
-                            className={`
-                          ${
-                            order.status === "NEW"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : order.status === "ACCEPTED"
-                              ? "bg-blue-100 text-blue-800"
-                              : order.status === "PREPARING"
-                              ? "bg-purple-100 text-purple-800"
-                              : order.status === "READY"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }
-                        `}
-                          >
-                            {order.status}
-                          </Badge>
                         </div>
                         <div className="text-sm text-gray-500">
                           {order.customerName}
@@ -384,10 +423,10 @@ export default function OrdersPage() {
                         {order.deliveryStatus && (
                           <Badge
                             className={`mt-1 ${getDeliveryStatusColor(
-                              order.deliveryStatus
+                              order.doordashStatus ? order.doordashStatus : ""
                             )}`}
                           >
-                            {formatDeliveryStatus(order.deliveryStatus)}
+                            {order.doordashStatus}
                           </Badge>
                         )}
                       </div>
@@ -458,10 +497,10 @@ export default function OrdersPage() {
                       <div className="text-gray-500">Delivery Status</div>
                       <Badge
                         className={getDeliveryStatusColor(
-                          activeOrder.deliveryStatus
+                          activeOrder.doordashStatus
                         )}
                       >
-                        {formatDeliveryStatus(activeOrder.deliveryStatus)}
+                        {activeOrder?.doordashStatus}
                       </Badge>
                     </div>
                     {activeOrder.tracking_url && (

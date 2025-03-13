@@ -71,7 +71,7 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: cartItems,
-          customerAddress: customerAddress || parsedQuote.customerAddress,
+          dropoff_address:   "1000 E Henrietta Rd, Rochester, NY, 14623",
         }),
       });
 
@@ -118,9 +118,9 @@ export default function CheckoutPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             items: cartItems,
-            customerAddress: customerAddress,
+            dropoff_address:   "1000 E Henrietta Rd, Rochester, NY, 14623",
           }),
-        });
+        }); 
 
         if (response.ok) {
           const quoteData = await response.json();
@@ -193,16 +193,20 @@ export default function CheckoutPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             lineItems,
-            deliveryQuote: deliveryQuote
+            deliveryQuote: deliveryQuote,
+            dropoff_address : "1000 E Henrietta Rd, Rochester, NY, 14623" ,
           }),
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error || "Failed to create checkout session"
-          );
-        }
+        console.log(response);
+
+
+        // if (!response.ok) {
+        //   const errorData = await response.json();
+        //   throw new Error(
+        //     errorData.error || "Failed to create checkout session"
+        //   );
+        // }
 
         const { clientSecret } = await response.json();
         setClientSecret(clientSecret);

@@ -15,21 +15,25 @@ export async function POST(req: NextRequest) {
     if (!existingOrder) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
-
+console.log(data)
     // Map DoorDash status to our DeliveryStatus enum
-    const statusMap: { [key: string]: DeliveryStatus } = {
-      DASHER_CONFIRMED: "COURIER_ASSIGNED",
-      PICKED_UP: "PICKED_UP",
-      DELIVERED: "DELIVERED",
+    const statusMap: { [key] } = {
+      DASHER_CONFIRMED: "Courier assigned",
+      DASHER_CONFIRMED_PICKUP_ARRIVAL: "Courier arriving",
+      DASHER_PICKED_UP: "Order picked up",
+      DELIVERED: "Delivered",
       FAILED: "FAILED",
-      COURIER_ARRIVED: "COURIER_ARRIVED"
+      COURIER_ARRIVED: "COURIER_ARRIVED",
+      DASHER_DROPPED_OFF: "Order dropped off",
+      DASHER_CONFIRMED_DROPOFF_ARRIVAL: "Courier arrived at dropoff"
     };
 
     // Update the order with webhook data
     const updatedOrder = await prisma.order.update({
       where: { id: existingOrder.id },
       data: {
-        deliveryStatus: statusMap[data.event_name] || "PENDING",
+        doordashStatus: statusMap[data.event_name],
+        deliveryStatus:  "PENDING",
         doordashTrackingUrl: data.tracking_url,
         deliveryFee: data.fee ? data.fee / 100 : null,
         dasherName: data.dasher_name,

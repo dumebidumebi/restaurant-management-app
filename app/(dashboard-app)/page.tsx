@@ -23,7 +23,7 @@ export default function Home() {
               <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
                 Take Control of Your Restaurant's Online Ordering with BistroKit
               </h1>
-              <p className="text-lg text-gray-700 mb-8">
+              <p className="text-lg text-gray-700 font-light mb-8">
                 Simplify online order management and grow your restaurant's
                 revenue. BistroKit provides a seamless experience for you and
                 your customers.
@@ -65,13 +65,13 @@ export default function Home() {
               <h2 className="text-3xl font-semibold text-gray-900 mb-4">
                 Streamline Your Online Ordering
               </h2>
-              <p className="text-gray-700 text-lg mb-6">
+              <p className="text-gray-700 font-light  text-lg mb-6">
                 BistroKit centralizes all your online orders into one simple
                 system. No more juggling multiple tablets or missed orders.
                 Integrate with popular platforms and manage everything in one
                 place.
               </p>
-              <ul className="list-disc list-inside text-gray-700">
+              <ul className="list-disc font-light  list-inside text-gray-700">
                 <li>
                   Consolidate orders from all your online channels (e.g.,
                   DoorDash, Uber Eats).
@@ -92,12 +92,12 @@ export default function Home() {
               <h2 className="text-3xl font-semibold text-gray-900 mb-4">
                 Boost Kitchen Efficiency & Reduce Errors
               </h2>
-              <p className="text-gray-700 text-lg mb-6">
+              <p className="text-gray-700 font-light  text-lg mb-6">
                 Automate your ordering process from start to finish. BistroKit's
                 smart routing system sends orders directly to the kitchen,
                 optimizing workflow and minimizing delays.
               </p>
-              <ul className="list-disc list-inside text-gray-700">
+              <ul className="list-disc list-inside font-light  text-gray-700">
                 <li>
                   Automated order printing or display on kitchen screens (KDS).
                 </li>
@@ -138,15 +138,15 @@ export default function Home() {
               />
             </div>
             <div>
-              <h2 className="text-3xl font-semibold text-gray-900 mb-4">
+              <h2 className="text-3xl  font-semibold text-gray-900 mb-4">
                 Delight Your Customers with Real-Time Tracking
               </h2>
-              <p className="text-gray-700 text-lg mb-6">
+              <p className="text-gray-700 font-light  text-lg mb-6">
                 Keep your customers informed every step of the way. With
                 BistroKit, customers can track their order status in real-time,
                 reducing anxiety and building trust.
               </p>
-              <ul className="list-disc list-inside text-gray-700">
+              <ul className="list-disc list-inside font-light  text-gray-700">
                 <li>
                   Branded order tracking pages for a consistent customer
                   experience.
