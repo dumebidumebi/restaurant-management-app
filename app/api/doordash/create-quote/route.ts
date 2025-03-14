@@ -1,5 +1,6 @@
 import { doordash } from '@/lib/doordash';
 import { redis } from '@/lib/redis';
+import { getUberAuthToken, getUberDeliveryQuotes } from '@/lib/uber';
 import { DeliveryResponse, DoorDashResponse } from '@doordash/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from "uuid";
@@ -12,6 +13,22 @@ export async function POST(req: NextRequest) {
     const externalDeliveryId = uuidv4();
 
     // Hardcoded addresses as specified
+    const pickupAddress = {
+      street_address: ["376 Jefferson Rd", ""],
+      state: "NY",
+      city: "Rochester",
+      zip_code: "14623",
+      country: "US",
+    }
+
+    const dropoffAddress = {
+      street_address: ["293 River Meadow Dr", "appt b"],
+      state: "NY",
+      city: "New York",
+      zip_code: "14623",
+      country: "US",
+    }
+
     const payload = {
       external_delivery_id: externalDeliveryId,
       pickup_address: "376 Jefferson Rd, Rochester, NY, 14623",
@@ -27,10 +44,14 @@ export async function POST(req: NextRequest) {
     console.log("Sending payload to DoorDash:", JSON.stringify(payload, null, 2));
 
     try {
-      const response = await doordash.deliveryQuote(payload);
-      console.log("DoorDash quote response:", response.data);
-      redis.set("quote", JSON.stringify(response.data))
-      return NextResponse.json(response.data, { status: 200 });
+      const auth =  await getUberAuthToken()
+      // console.log("Auth token", auth);
+      const uberQuote = await getUberDeliveryQuotes({authToken: auth?.access_token, pickupAddress: pickupAddress, dropoffAddress: dropoffAddress })
+      console.log("Uber quote", uberQuote);
+      // const response = await doordash.deliveryQuote(payload);
+      // console.log("DoorDash quote response:", response.data);
+      redis.set("quote", JSON.stringify(uberQuote))
+      return NextResponse.json(uberQuote, { status: 200 });
     } catch (doordashError: any) {
       console.error("DoorDash API error details:", JSON.stringify(doordashError?.response?.data || doordashError, null, 2));
       

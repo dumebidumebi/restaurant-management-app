@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      const response = await doordash.deliveryQuoteAccept();
+      const response = await doordash.deliveryQuoteAccept(externalDeliveryId);
       console.log("DoorDash quote response:", response.data);
       
       return NextResponse.json(response.data, { status: 200 });

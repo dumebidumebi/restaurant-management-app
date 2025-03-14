@@ -5,10 +5,14 @@ import { redis } from "@/lib/redis";
 import { NextRequest, NextResponse } from "next/server";
 import { doordash } from "@/lib/doordash";
 import { v4 as uuidv4 } from "uuid";
+import { getAccessToken } from "uber-direct/auth";
+import { createDeliveriesClient } from "uber-direct/deliveries";
 
 export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature") as string;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+  const token = await getAccessToken();
+  const deliveriesClient = createDeliveriesClient(token);
 
   try {
     const event = stripe.webhooks.constructEvent(
@@ -42,8 +46,12 @@ export async function POST(req: NextRequest) {
 
       // Create order items from line items
       const lineItems = checkoutSession.line_items?.data;
-      if (!lineItems) return NextResponse.json({ error: "No line items found" }, { status: 400 });
-      
+      if (!lineItems)
+        return NextResponse.json(
+          { error: "No line items found" },
+          { status: 400 }
+        );
+
       const orderItems = lineItems.map((item) => ({
         name: item.description || "",
         quantity: item.quantity || 1,
@@ -51,36 +59,39 @@ export async function POST(req: NextRequest) {
         notes: "", // Add any notes if needed
         itemId: item.price?.product as string, // Reference to the original item if available
       }));
-  
+
       // Find the store ID based on an item in the checkout
       let storeId: string | null = null;
-      
+
       for (const item of lineItems) {
         const stripeProductId = item.price?.product as string;
-  
+
         // Find the item in the database using the stripeProductId
         const dbItem = await prisma.item.findFirst({
           where: { stripeProductId },
           include: { user: true },
         });
-  
+
         if (dbItem) {
           // Find the store associated with the user
           const store = await prisma.store.findFirst({
             where: { ownerId: dbItem.userId },
           });
-  
+
           if (store) {
             storeId = store.id;
             break; // Exit the loop once we find the store
           }
         }
       }
-  
+
       if (!storeId) {
-        return NextResponse.json({ error: "No store found for this order" }, { status: 400 });
+        return NextResponse.json(
+          { error: "No store found for this order" },
+          { status: 400 }
+        );
       }
-     
+
       // Handle DoorDash delivery (placeholder - you'd need to implement this)
       let deliveryFee = 0;
       let deliveryId = "";
@@ -96,8 +107,62 @@ export async function POST(req: NextRequest) {
         locale: "en-US",
         pickup_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       };
-      const response = await doordash.createDelivery(payload)
-      
+      const response = await doordash.createDelivery(payload);
+
+      // Hardcoded addresses as specified
+      const pickupAddress = {
+        street_address: ["376 Jefferson Rd", ""],
+        state: "NY",
+        city: "Rochester",
+        zip_code: "14623",
+        country: "US",
+      };
+
+      const dropoffAddress = {
+        street_address: ["293 River Meadow Dr", "appt b"],
+        state: "NY",
+        city: "New York",
+        zip_code: "14623",
+        country: "US",
+      };
+
+      const deliveryRequest = {
+        pickup_name: "Just Chik'n",
+        pickup_address: JSON.stringify(pickupAddress),
+        pickup_phone_number: "+15555555555",
+        dropoff_name: "Customer Name",
+        dropoff_address: JSON.stringify(dropoffAddress),
+        dropoff_phone_number: "+16179592773",
+        manifest_items: orderItems.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          size: "small",
+          price: item.price * 100
+        })),        
+      };
+
+
+
+      // const deliveryRequest = {
+      //   pickup_name: 'Store Name',
+      //   pickup_address: "{\"street_address\":[\"100 Maiden Ln\"],\"city\":\"New York\",\"state\":\"NY\",\"zip_code\":\"10023\",\"country\":\"US\"}",
+      //   pickup_phone_number: '+14155551212',
+      //   dropoff_name: 'Customer Name',
+      //   dropoff_address: "{\"street_address\":[\"30 Lincoln Center Plaza\"],\"city\":\"New York\",\"state\":\"NY\",\"zip_code\":\"10023\",\"country\":\"US\"}",
+      //   dropoff_phone_number: '+14155551212',
+      //   manifest_items: [
+      //     {
+      //       name: 'Thing 1',
+      //       quantity: 1,
+      //       size: 'small',
+      //       price: 1000
+      //     },
+      //   ]
+      // };
+
+      const delivery = await deliveriesClient.createDelivery(deliveryRequest);
+      console.log("UBER EATS MADE DELIVERY",delivery);
+    
       // Create the order with the store information
       const order = await prisma.order.create({
         data: {
@@ -115,7 +180,7 @@ export async function POST(req: NextRequest) {
           customerAddress,
           paymentIntentId,
           stripeCheckoutSessionId: checkoutSession.id,
-          deliveryFee: deliveryFee, 
+          deliveryFee: deliveryFee,
           deliveryId: response.data.external_delivery_id,
           storeId: storeId,
           doordashTrackingUrl: response.data.tracking_url,
@@ -123,7 +188,6 @@ export async function POST(req: NextRequest) {
           doordashStatus: response.data.delivery_status,
           pickupTimeEstimated: response.data.pickup_time_estimated,
           dropoffTimeEstimated: response.data.dropoff_time_estimated,
-          
         },
         include: {
           items: true,
@@ -132,13 +196,13 @@ export async function POST(req: NextRequest) {
 
       // Update orders in Redis cache
       await updateOrdersCache();
-      
+
       console.log("Order created:", order.orderNumber);
     }
 
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (err: any) {
-    console.error(`Webhook Error: ${err.message}`);
+    console.error(`Webhook Error: ${err}`);
     return NextResponse.json(
       { error: `Webhook Error: ${err.message}` },
       { status: 400 }
