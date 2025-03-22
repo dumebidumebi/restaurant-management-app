@@ -35,7 +35,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { PrismaClient } from "@prisma/client";
+
 import { ItemsManager } from "@/components/ItemsManager/itemsManager";
 import { CategoryManager } from "@/components/CategoriesManager/categoryManager ";
 import { ModifiersManager } from "@/components/ModifiersManager/modifiersManager";
