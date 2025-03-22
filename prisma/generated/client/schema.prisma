@@ -1,0 +1,297 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DIRECT_DATABASE_URL")
+}
+
+model User {
+  id             String          @id @unique
+  data           Json
+  store          Store?          @relation("UserStore")
+  createdAt      DateTime        @default(now())
+  items          Item[]
+  categories     Category[]
+  modifiers      Modifier[]
+  modifiergroups ModifierGroup[]
+  Menu           Menu[]
+}
+
+model Store {
+  id                 String     @id @unique @default(uuid())
+  name               String
+  ownerId            String     @unique
+  owner              User       @relation("UserStore", fields: [ownerId], references: [id])
+  locations          Location[]
+  menus              Menu[]
+  settings           Json // Contains settings divided into categories
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  site_subdomain     String?    @unique
+  site_logo          String?
+  site_cover_image   String?
+  site_custom_domain String?
+  orders             Order[]
+  carts              Cart[]     @relation("StoreToCart")
+}
+
+model Location {
+  id        String   @id @default(uuid())
+  address   String
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  menus     Menu[]   @relation("MenuLocations")
+  openHours Json // JSON object for open hours (e.g., Monday-Sunday)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Menu {
+  id           String     @id @default(uuid())
+  name         String
+  storeId      String
+  store        Store      @relation(fields: [storeId], references: [id])
+  locations    Location[] @relation("MenuLocations")
+  isAvailable  Boolean    @default(true) // Overall availability
+  availability Json // JSON for availability settings (e.g., Sunday-Saturday)
+  categories   Category[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  userId       String // Now required
+  user         User       @relation(fields: [userId], references: [id]) // Now required
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  description  String
+  menuId       String?
+  menu         Menu?    @relation(fields: [menuId], references: [id])
+  items        Item[]   @relation("CategoryItems")
+  isAvailable  Boolean? @default(true) // Simple availability flag
+  availability Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String // Now required
+  user         User     @relation(fields: [userId], references: [id]) // Now required
+}
+
+model Item {
+  id              String          @id @default(uuid())
+  name            String
+  imageUrl        String
+  displayName     String
+  description     String?
+  price           Float
+  options         String?
+  allergens       String?
+  categoryId      String?
+  categories      Category[]      @relation("CategoryItems")
+  isAvailable     Boolean?        @default(true) // Simple availability flag
+  availability    Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  modifierGroups  ModifierGroup[] @relation("ItemModifierGroups")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  stripeProductId String?
+  stripePriceId   String?
+}
+
+model ModifierGroup {
+  id           String     @id @default(uuid())
+  name         String
+  minSelect    Int
+  maxSelect    Int
+  items        Item[]     @relation("ItemModifierGroups")
+  modifiers    Modifier[] @relation("ModifierGroupModifiers")
+  isAvailable  Boolean?   @default(true) // Simple availability flag
+  availability Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+}
+
+model Modifier {
+  id              String          @id @default(uuid())
+  name            String
+  price           Float
+  imageUrl        String?
+  displayName     String?
+  description     String?
+  minSelect       Int?
+  maxSelect       Int?
+  modifierGroups  ModifierGroup[] @relation("ModifierGroupModifiers")
+  isAvailable     Boolean?        @default(true) // Simple availability flag
+  availability    Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  stripeProductId String?
+  stripePriceId   String?
+}
+
+enum ItemOptions {
+  ALCOHOLIC
+  GLUTEN_FREE
+  VEGETARIAN
+}
+
+enum ItemAllergens {
+  DAIRY
+  EGGS
+  FISH
+  GLUTEN
+  PEANUTS
+  SOY
+  TREE_NUTS
+}
+
+enum OrderStatus {
+  NEW
+  ACCEPTED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SCHEDULED
+  COURIER_ASSIGNED
+  COURIER_ARRIVED
+  PICKED_UP
+  DELIVERED
+  FAILED
+}
+
+model Order {
+  stripeCheckoutSessionId String
+  id                      String      @id @default(uuid())
+  orderNumber             String      @unique
+  status                  OrderStatus @default(NEW)
+  items                   OrderItem[]
+  subtotal                Float
+  tax                     Float
+  deliveryFee             Float?
+  tip                     Float?
+  total                   Float
+  customerName            String
+  customerPhone           String?
+  customerEmail           String?
+  customerAddress         String?
+  notes                   String?
+
+  // Preparation & delivery fields
+  prepTime        Int? // Preparation time in minutes
+  deliveryQuoteId String? // Delivery quote ID
+  deliveryId      String? // Delivery ID from Uber Direct
+
+  // Delivery status tracking
+  deliveryStatus  DeliveryStatus? @default(PENDING)
+  uberStatus      String? // Raw status from Uber Direct
+  uberTrackingUrl String? // Tracking URL for the customer
+
+  // Courier information
+  dasherName          String? // Courier name
+  dasherPhone         String? // Courier phone number
+  courierLocationLat  Float? // Current courier latitude
+  courierLocationLng  Float? // Current courier longitude
+  courierVehicleType  String? // Courier vehicle type (car, bicycle, etc.)
+  courierVehicleMake  String? // Vehicle make (Toyota, etc.)
+  courierVehicleModel String? // Vehicle model (Prius, etc.)
+  courierVehicleColor String? // Vehicle color
+  courierRating       String? // Courier rating
+
+  // Delivery timing
+  estimatedPickupTime  DateTime? // Estimated pickup time
+  estimatedDropoffTime DateTime? // Estimated delivery time
+
+  // Refund information
+  refundAmount       Float? // Total refund amount
+  refundReason       String? // Reason for refund
+  refundPartyAtFault String? // Who is at fault for the refund
+  refundItems        String? // JSON string of refunded items
+  refundFees         String? // JSON string of refund fees
+  refundedAt         DateTime? // When the refund was processed
+
+  // Payment tracking
+  paymentIntentId String? // Stripe payment intent ID
+  paymentStatus   String? // Stripe payment status
+
+  // Relationships
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  // Timestamps
+  createdAt   DateTime? @default(now())
+  updatedAt   DateTime? @updatedAt
+  lastUpdated DateTime? // Last webhook update timestamp
+
+  // Legacy fields (keeping for backward compatibility)
+  doordashTrackingUrl  String?
+  doordashFee          Float?
+  doordashStatus       String?
+  pickupTimeEstimated  DateTime?
+  dropoffTimeEstimated DateTime?
+  supportReference     String?
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  name      String
+  quantity  Int
+  price     Float
+  modifiers Json? // Array of selected modifiers
+  notes     String?
+  itemId    String? // Reference to original item if available
+
+  // Relationships
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cart {
+  id              String     @id @default(uuid())
+  items           CartItem[]
+  customerName    String?
+  customerPhone   String?
+  customerEmail   String?
+  deliveryAddress String?
+  deliveryFee     Float?
+  storeId         String
+  store           Store      @relation("StoreToCart", fields: [storeId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  name      String
+  quantity  Int
+  price     Float
+  modifiers Json? // Array of selected modifiers
+  notes     String?
+  itemId    String? // Reference to original item 
+
+  // Relationships
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
