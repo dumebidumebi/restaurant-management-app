@@ -192,14 +192,36 @@ model Order {
 
   // Preparation & delivery fields
   prepTime        Int? // Preparation time in minutes
-  deliveryQuoteId String? // DoorDash quote ID
-  deliveryId      String? @default(uuid()) // DoorDash delivery ID
+  deliveryQuoteId String? // Delivery quote ID
+  deliveryId      String?  // Delivery ID from Uber Direct
 
-  deliveryStatus       DeliveryStatus?
-  deliveryPickupTime   DateTime?
-  estimatedPickupTime  DateTime?
-  estimatedDropoffTime DateTime?
-  courierName          String?
+  // Delivery status tracking
+  deliveryStatus       DeliveryStatus? @default(PENDING)
+  uberStatus           String? // Raw status from Uber Direct
+  uberTrackingUrl      String? // Tracking URL for the customer
+  
+  // Courier information
+  dasherName           String? // Courier name
+  dasherPhone          String? // Courier phone number
+  courierLocationLat   Float? // Current courier latitude
+  courierLocationLng   Float? // Current courier longitude
+  courierVehicleType   String? // Courier vehicle type (car, bicycle, etc.)
+  courierVehicleMake   String? // Vehicle make (Toyota, etc.)
+  courierVehicleModel  String? // Vehicle model (Prius, etc.)
+  courierVehicleColor  String? // Vehicle color
+  courierRating        String? // Courier rating
+  
+  // Delivery timing
+  estimatedPickupTime  DateTime? // Estimated pickup time
+  estimatedDropoffTime DateTime? // Estimated delivery time
+  
+  // Refund information
+  refundAmount         Float? // Total refund amount
+  refundReason         String? // Reason for refund
+  refundPartyAtFault   String? // Who is at fault for the refund
+  refundItems          String? // JSON string of refunded items
+  refundFees           String? // JSON string of refund fees
+  refundedAt           DateTime? // When the refund was processed
 
   // Payment tracking
   paymentIntentId String? // Stripe payment intent ID
@@ -210,14 +232,14 @@ model Order {
   store   Store  @relation(fields: [storeId], references: [id])
 
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime? @default(now())
+  updatedAt   DateTime? @updatedAt
+  lastUpdated DateTime? // Last webhook update timestamp
 
+  // Legacy fields (keeping for backward compatibility)
   doordashTrackingUrl  String?
   doordashFee          Float?
   doordashStatus       String?
-  dasherName           String?
-  dasherPhone          String?
   pickupTimeEstimated  DateTime?
   dropoffTimeEstimated DateTime?
   supportReference     String?
@@ -272,35 +294,3 @@ model CartItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
-//sample settings
-// {
-//   "generalSettings": {
-//     "brandName": "My Restaurant",
-//     "brandLinks": {
-//       "website": "https://myrestaurant.com",
-//       "facebook": "https://facebook.com/myrestaurant",
-//       "instagram": "https://instagram.com/myrestaurant"
-//     },
-//     "timezone": "America/New_York",
-//     "salesTax": 8.5
-//   },
-//   "locationSettings": [
-//     {
-//       "locationId": "location-id-1",
-//       "openHours": {
-//         "monday": { "open": "08:00", "close": "18:00" },
-//         "tuesday": { "open": "08:00", "close": "18:00" }
-//       }
-//     }
-//   ],
-//   "contactSettings": {
-//     "email": "contact@myrestaurant.com",
-//     "phone": "+1234567890"
-//   },
-//   "fulfillmentSettings": {
-//     "preparationTimeMins": 15,
-//     "largeOrderThreshold": 10,
-//     "largeOrderPrepTimeMins": 30
-//   }
-// }

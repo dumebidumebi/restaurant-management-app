@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
         createdAt: "desc", // Optional: sort by creation date (newest first)
       },
       include: {
-        categories: true, // Include categories related to the menu
+        categories: { include: { items: {include: {modifierGroups: {include: {modifiers: true} }}}} },
+
+        // Include categories related to the menu
       },
     });
 

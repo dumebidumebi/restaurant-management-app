@@ -35,6 +35,7 @@ export async function getMenus(userId: string) {
 export function MenuManager() {
   const { user } = useUser();
   const { toast } = useToast();
+  
   const [items, setItems] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
 

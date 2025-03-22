@@ -184,28 +184,29 @@ export default function SettingsForm() {
   };
 
   const calculateProgress = () => {
-    const filledFields = Object.values(form.getValues()).reduce(
-      (acc, value) => {
-        if (typeof value === "object") {
-          // Calculate the filled fields in nested objects
-          return (
-            acc + Object.values(value).filter((field) => field !== "").length
-          );
-        }
-        return acc + (value !== "" ? 1 : 0);
-      },
-      0
-    );
-    const totalFields = Object.keys(form.getValues()).reduce((acc, key) => {
-      if (typeof form.getValues()[key] === "object") {
+    const formValues = form.getValues();
+    
+    const filledFields = Object.values(formValues).reduce((acc, value) => {
+      if (typeof value === "object") {
+        // Calculate the filled fields in nested objects
+        return acc + Object.values(value).filter((field) => field !== "").length;
+      }
+      return acc + (value !== "" ? 1 : 0);
+    }, 0);
+    
+    const totalFields = Object.keys(formValues).reduce((acc, key) => {
+      // Use type assertion to tell TypeScript this key is valid
+      const value = formValues[key as keyof typeof formValues];
+      if (typeof value === "object") {
         // Count nested fields
-        return acc + Object.keys(form.getValues()[key]).length;
+        return acc + Object.keys(value).length;
       }
       return acc + 1;
     }, 0);
-
+  
     return (filledFields / totalFields) * 100;
   };
+  
 
   useEffect(() => {
     setProgress(calculateProgress());

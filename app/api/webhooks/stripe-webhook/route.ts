@@ -36,13 +36,29 @@ export async function POST(req: NextRequest) {
 
       // Extract customer details
       const customerEmail = checkoutSession.customer_details?.email || "";
-      const customerName = checkoutSession.customer_details?.name || "";
-      const customerPhone = checkoutSession.customer_details?.phone || "";
-      const customerAddress = checkoutSession.metadata?.dropoff_address || "";
+      const customerName = `${checkoutSession.metadata?.recipientFirstName} ${checkoutSession.metadata?.recipientLastName}`; // From metadata
+      const customerPhone = checkoutSession.metadata?.recipientPhone; // From metadata
+      const customerAddress = checkoutSession.metadata?.deliveryAddress || ""; // Corrected this
       const subtotal = checkoutSession.amount_subtotal || 0;
       const tax = checkoutSession.total_details?.amount_tax || 0;
       const total = checkoutSession.amount_total || 0;
       const paymentIntentId = checkoutSession.payment_intent as string;
+
+      // Extract delivery-related metadata
+      const deliveryType =
+        (checkoutSession.metadata?.deliveryType as "pickup" | "delivery") ||
+        "pickup";
+      const deliveryApt = checkoutSession.metadata?.deliveryApt || "";
+      const deliveryInstructions =
+        checkoutSession.metadata?.deliveryInstructions || "";
+      const recipientFirstName =
+        checkoutSession.metadata?.recipientFirstName || "";
+      const recipientLastName =
+        checkoutSession.metadata?.recipientLastName || "";
+      const recipientPhone = checkoutSession.metadata?.recipientPhone || "";
+      const scheduledTime = checkoutSession.metadata?.scheduledTime || "";
+      const scheduledDate = checkoutSession.metadata?.scheduledDate || "";
+      const selectedLocation = checkoutSession.metadata?.selectedLocation || "";
 
       // Create order items from line items
       const lineItems = checkoutSession.line_items?.data;
@@ -92,77 +108,68 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Handle DoorDash delivery (placeholder - you'd need to implement this)
       let deliveryFee = 0;
-      let deliveryId = "";
+      let deliveryId: string | null = null; // Initialize as null
+      let delivery;
 
-      const payload = {
-        external_delivery_id: uuidv4(),
-        pickup_address: "376 Jefferson Rd, Rochester, NY, 14623",
-        pickup_business_name: "Just Chik'n",
-        pickup_phone_number: "+15855551234",
-        dropoff_address: customerAddress,
-        dropoff_phone_number: "+16179592773",
-        order_value: total,
-        locale: "en-US",
-        pickup_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-      };
-      const response = await doordash.createDelivery(payload);
+      if (deliveryType === "delivery") {
+        // Hardcoded addresses as specified
+        const pickupAddress = {
+          street_address: ["376 Jefferson Rd", ""],
+          state: "NY",
+          city: "Rochester",
+          zip_code: "14623",
+          country: "US",
+        };
 
-      // Hardcoded addresses as specified
-      const pickupAddress = {
-        street_address: ["376 Jefferson Rd", ""],
-        state: "NY",
-        city: "Rochester",
-        zip_code: "14623",
-        country: "US",
-      };
+        // Convert customerAddress string to required object
+        const customerAddressObject = parseAddressString(customerAddress);
+        const dropoffAddress = {
+          street_address: [customerAddressObject.streetAddress, deliveryApt],
+          state: customerAddressObject.state,
+          city: customerAddressObject.city,
+          zip_code: customerAddressObject.zipCode,
+          country: customerAddressObject.country,
+        };
 
-      const dropoffAddress = {
-        street_address: ["293 River Meadow Dr", "appt b"],
-        state: "NY",
-        city: "New York",
-        zip_code: "14623",
-        country: "US",
-      };
+        const deliveryRequest = {
+          pickup_name: "Just Chik'n",
+          pickup_address: JSON.stringify(pickupAddress),
+          pickup_phone_number: "+15555555555",
+          dropoff_name: recipientFirstName + " " + recipientLastName,
+          dropoff_address: JSON.stringify(dropoffAddress),
+          dropoff_phone_number: recipientPhone,
+          manifest_items: orderItems.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            size: "small",
+            price: item.price * 100,
+          })),
+        };
 
-      const deliveryRequest = {
-        pickup_name: "Just Chik'n",
-        pickup_address: JSON.stringify(pickupAddress),
-        pickup_phone_number: "+15555555555",
-        dropoff_name: "Customer Name",
-        dropoff_address: JSON.stringify(dropoffAddress),
-        dropoff_phone_number: "+16179592773",
-        manifest_items: orderItems.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          size: "small",
-          price: item.price * 100
-        })),        
-      };
+        console.log("DELIVERY REQUEST",(deliveryRequest))
 
+        delivery = await deliveriesClient.createDelivery(deliveryRequest);
+        console.log("UBER EATS MADE DELIVERY", delivery);
 
+        // Handle DoorDash delivery (placeholder - you'd need to implement this)
+        // const payload = {
+        //   external_delivery_id: uuidv4(),
+        //   pickup_address: "376 Jefferson Rd, Rochester, NY, 14623",
+        //   pickup_business_name: "Just Chik'n",
+        //   pickup_phone_number: "+15855551234",
+        //   dropoff_address: customerAddress,
+        //   dropoff_phone_number: recipientPhone,
+        //   order_value: total,
+        //   locale: "en-US",
+        //   pickup_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        // };
+        // const response = await doordash.createDelivery(payload);
 
-      // const deliveryRequest = {
-      //   pickup_name: 'Store Name',
-      //   pickup_address: "{\"street_address\":[\"100 Maiden Ln\"],\"city\":\"New York\",\"state\":\"NY\",\"zip_code\":\"10023\",\"country\":\"US\"}",
-      //   pickup_phone_number: '+14155551212',
-      //   dropoff_name: 'Customer Name',
-      //   dropoff_address: "{\"street_address\":[\"30 Lincoln Center Plaza\"],\"city\":\"New York\",\"state\":\"NY\",\"zip_code\":\"10023\",\"country\":\"US\"}",
-      //   dropoff_phone_number: '+14155551212',
-      //   manifest_items: [
-      //     {
-      //       name: 'Thing 1',
-      //       quantity: 1,
-      //       size: 'small',
-      //       price: 1000
-      //     },
-      //   ]
-      // };
+        deliveryFee = delivery.fee / 100;
+        deliveryId = delivery.id;
+      }
 
-      const delivery = await deliveriesClient.createDelivery(deliveryRequest);
-      console.log("UBER EATS MADE DELIVERY",delivery);
-    
       // Create the order with the store information
       const order = await prisma.order.create({
         data: {
@@ -178,16 +185,18 @@ export async function POST(req: NextRequest) {
           customerPhone,
           customerEmail,
           customerAddress,
+          notes: deliveryInstructions, // Use delivery instructions as notes
+
           paymentIntentId,
           stripeCheckoutSessionId: checkoutSession.id,
           deliveryFee: deliveryFee,
-          deliveryId: response.data.external_delivery_id,
+          deliveryId: (deliveryType === 'delivery' ? deliveryId : null),
           storeId: storeId,
-          doordashTrackingUrl: response.data.tracking_url,
-          doordashFee: response.data.fee / 100,
-          doordashStatus: response.data.delivery_status,
-          pickupTimeEstimated: response.data.pickup_time_estimated,
-          dropoffTimeEstimated: response.data.dropoff_time_estimated,
+          doordashTrackingUrl: delivery?.tracking_url ?? null, // Optional chaining
+          doordashFee: delivery?.fee / 100 ?? null, // Optional chaining
+          doordashStatus: delivery?.delivery_status ?? null, // Optional chaining
+          pickupTimeEstimated: delivery?.pickup_eta ?? null, // Optional chaining
+          dropoffTimeEstimated: delivery?.dropoff_eta ?? null, // Optional chaining
         },
         include: {
           items: true,
@@ -208,6 +217,36 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+}
+
+// Helper function to parse the address string into required object
+function parseAddressString(addressString: string): {
+  streetAddress: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+} {
+  // Split the address string by commas and trim each part
+  const parts = addressString.split(",").map((part) => part.trim());
+
+  // Assuming the address string is in the format: "Street Address, City, State ZipCode, Country"
+  const streetAddress = parts[0] || "";
+  const city = parts[1] || "";
+
+  // The last part is State ZipCode and Country, so we split that
+  const stateZipCodeAndCountry = parts[2] ? parts[2].split(" ") : [];
+  const state = stateZipCodeAndCountry[0] || ""; // E.g., "NY"
+  const zipCode = stateZipCodeAndCountry[1] || ""; // E.g., "14623"
+  const country = parts[3] || "US"; // Assuming it's US if not provided
+
+  return {
+    streetAddress,
+    city,
+    state,
+    zipCode,
+    country,
+  };
 }
 
 // Helper function to update the Redis cache

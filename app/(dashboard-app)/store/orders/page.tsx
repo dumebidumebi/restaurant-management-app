@@ -22,11 +22,16 @@ import {
   Truck,
   ExternalLink,
   MapPin,
+  Phone,
+  Mail,
+  AlertCircle,
+  Plus,
 } from "lucide-react";
 
 // Custom Components
 import PrepTimeSetter from "@/components/PrepTimeSetter";
 import NewOrderAlert from "@/components/NewOrderAlert";
+import CreateOrderModal from "@/components/CreateOrderModal";
 
 // Types
 interface OrderItem {
@@ -40,6 +45,8 @@ interface Order {
   status: string;
   orderNumber: string;
   customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
   customerAddress?: string;
   total: number;
   subtotal: number;
@@ -63,6 +70,21 @@ interface Order {
   fee?: number;
 }
 
+interface CreateOrderData {
+  storeId: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  customerAddress?: string;
+  notes?: string;
+  items: {
+    name: string;
+    quantity: number;
+    price: number;
+    notes?: string;
+  }[];
+}
+
 export default function OrdersPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [activeTab, setActiveTab] = useState("new");
@@ -71,19 +93,22 @@ export default function OrdersPage() {
   const [newOrderAlert, setNewOrderAlert] = useState<Order | null>(null);
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
 
   // Group orders by status
   const groupedOrders = {
     new: orders.filter((order) => order.status === "NEW"),
     inProgress: orders.filter((order) =>
-      ["ACCEPTED", "PREPARING", "READY"].includes(order.status)
+      ["ACCEPTED", "PREPARING", "READY"].includes(order.status),
     ),
-    completed: orders.filter((order) => order.status === "COMPLETED"),
+    completed: orders.filter((order) =>
+      ["COMPLETED", "CANCELED"].includes(order.status),
+    ),
   };
 
   useEffect(() => {
     audioRef.current = new Audio(
-      "https://upcdn.io/223k23J/raw/notification.mp3"
+      "https://upcdn.io/223k23J/raw/notification.mp3",
     );
     fetchOrders();
 
@@ -106,7 +131,7 @@ export default function OrdersPage() {
 
     if (currentTabOrders.length > 0) {
       const currentOrderStillVisible = currentTabOrders.find(
-        (order) => order.id === activeOrder?.id
+        (order) => order.id === activeOrder?.id,
       );
       setActiveOrder(currentOrderStillVisible || currentTabOrders[0]);
     } else {
@@ -122,8 +147,11 @@ export default function OrdersPage() {
       setOrders(data);
 
       // Check if we have new orders that need alerts
-      const newOrders = data.filter((order) => order.status === "NEW");
-      if (newOrders.length > 0 && newOrders.length > groupedOrders.new.length) {
+      const newOrders = data.filter((order: Order) => order.status === "NEW");
+      if (
+        newOrders.length > 0 &&
+        newOrders.length > groupedOrders.new.length
+      ) {
         playAudio();
         if (!newOrderAlert) {
           setNewOrderAlert(newOrders[0]);
@@ -154,8 +182,8 @@ export default function OrdersPage() {
     setActiveOrder(updatedOrder);
     setOrders((prevOrders) =>
       prevOrders.map((order) =>
-        order.id === activeOrder.id ? updatedOrder : order
-      )
+        order.id === activeOrder.id ? updatedOrder : order,
+      ),
     );
     setShowPrepTimeDialog(false);
 
@@ -174,19 +202,21 @@ export default function OrdersPage() {
       setActiveOrder(originalOrder);
       setOrders(originalOrders);
       // Optionally, display an error message to the user
-      alert("Failed to accept order.  Please try again.");
+      alert("Failed to accept order. Please try again.");
     }
   };
 
   const handleMarkReady = async (orderId: string) => {
-    const originalOrder = { ...activeOrder! }; // Store original order
+    if (!activeOrder) return;
+
+    const originalOrder = { ...activeOrder }; // Store original order
     const originalOrders = [...orders]; // Store original orders
 
     // Optimistically update the UI
-    const updatedOrder = { ...activeOrder!, status: "READY" };
+    const updatedOrder = { ...activeOrder, status: "READY" };
     setActiveOrder(updatedOrder);
     setOrders((prevOrders) =>
-      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order))
+      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
     );
 
     try {
@@ -202,14 +232,16 @@ export default function OrdersPage() {
   };
 
   const handleHandOff = async (orderId: string) => {
-    const originalOrder = { ...activeOrder! }; // Store original order
+    if (!activeOrder) return;
+
+    const originalOrder = { ...activeOrder }; // Store original order
     const originalOrders = [...orders]; // Store original orders
 
     // Optimistically update the UI
-    const updatedOrder = { ...activeOrder!, status: "COMPLETED" };
+    const updatedOrder = { ...activeOrder, status: "COMPLETED" };
     setActiveOrder(updatedOrder);
     setOrders((prevOrders) =>
-      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order))
+      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
     );
 
     try {
@@ -229,6 +261,66 @@ export default function OrdersPage() {
       await fetch(`/api/orders/${orderId}/print`, { method: "POST" });
     } catch (error) {
       console.error("Failed to print receipt:", error);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    if (!activeOrder) return;
+
+    const originalOrder = { ...activeOrder };
+    const originalOrders = [...orders];
+
+    // Optimistically update the UI
+    const updatedOrder = { ...activeOrder, status: "CANCELED" };
+    setActiveOrder(updatedOrder);
+    setOrders((prevOrders) =>
+      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+    );
+
+    try {
+      await fetch(`/api/orders/${orderId}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({ orderId: orderId }),
+      });
+    } catch (error) {
+      console.error("Failed to cancel order:", error);
+
+      // Revert the UI on error
+      setActiveOrder(originalOrder);
+      setOrders(originalOrders);
+      alert("Failed to cancel order. Please try again.");
+    }
+  };
+
+  const handleCreateOrder = async (orderData: CreateOrderData) => {
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create order");
+      }
+
+      const newOrder = await response.json();
+
+      // Add the new order to our state and refresh the list
+      await fetchOrders();
+
+      // Close the modal
+      setShowCreateOrderModal(false);
+
+      // Switch to the "new" tab and select the new order
+      setActiveTab("new");
+
+      // Play notification sound for new order
+      playAudio();
+    } catch (error) {
+      console.error("Failed to create order:", error);
+      alert("Failed to create order. Please try again.");
     }
   };
 
@@ -322,6 +414,15 @@ export default function OrdersPage() {
           </div>
         </div>
         <div className="flex space-x-2">
+          {/* Add Create Order button */}
+          <Button
+            variant="default"
+            onClick={() => setShowCreateOrderModal(true)}
+            className="mr-2"
+          >
+            <Plus className="h-4 w-4 mr-1" /> New Order
+          </Button>
+
           <div className="relative">
             <Input placeholder="Search orders..." className="pl-8 w-[220px]" />
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
@@ -371,7 +472,6 @@ export default function OrdersPage() {
       {/* Main Content */}
       <div className="flex flex-1 relative">
         {/* Left Panel - Order List */}
-
         <div className="w-1/3 border-r overflow-y-scroll h-screen bg-white">
           {groupedOrders[activeTab as keyof typeof groupedOrders].length ===
           0 ? (
@@ -404,6 +504,8 @@ export default function OrdersPage() {
                             ? "bg-blue-500"
                             : order.status === "READY"
                             ? "bg-green-500"
+                            : order.status === "CANCELED"
+                            ? "bg-red-500"
                             : "bg-gray-500"
                         }`}
                       >
@@ -411,10 +513,10 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <div className="flex items-center text-sm font-bold gap-2">
-                          #{order.orderNumber}
+                           {order.customerName}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {order.customerName}
+                        #{order.orderNumber}
                         </div>
                         <div className="text-xs text-gray-600">
                           {order.customerAddress ? "Delivery" : "Pickup"} • $
@@ -423,16 +525,21 @@ export default function OrdersPage() {
                         {order.deliveryStatus && (
                           <Badge
                             className={`mt-1 ${getDeliveryStatusColor(
-                              order.doordashStatus ? order.doordashStatus : ""
+                              order.doordashStatus ? order.doordashStatus : "",
                             )}`}
                           >
                             {order.doordashStatus}
                           </Badge>
                         )}
+                        {order.status === "CANCELED" && (
+                          <Badge className="mt-1 bg-red-100 text-red-800">
+                            CANCELED
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
-                )
+                ),
               )}
             </div>
           )}
@@ -442,8 +549,6 @@ export default function OrdersPage() {
         <div className="flex-1 bg-white h-full sticky right-0 top-28">
           {activeOrder ? (
             <div className="flex flex-col h-full pb-16 ">
-              {" "}
-              {/* Add padding at bottom to prevent content being hidden behind fixed action bar */}
               {/* Order Header */}
               <div className="px-4 py-3 border-b">
                 <div className="flex items-center gap-3">
@@ -455,6 +560,8 @@ export default function OrdersPage() {
                         ? "bg-blue-500"
                         : activeOrder.status === "READY"
                         ? "bg-green-500"
+                        : activeOrder.status === "CANCELED"
+                        ? "bg-red-500"
                         : "bg-gray-500"
                     }`}
                   >
@@ -463,7 +570,7 @@ export default function OrdersPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg font-bold">
-                        #{activeOrder.orderNumber}
+                      {activeOrder.customerName} 
                       </h2>
                       <Badge
                         className={`
@@ -476,6 +583,8 @@ export default function OrdersPage() {
                             ? "bg-purple-100 text-purple-800"
                             : activeOrder.status === "READY"
                             ? "bg-green-100 text-green-800"
+                            : activeOrder.status === "CANCELED"
+                            ? "bg-red-100 text-red-800"
                             : "bg-gray-100 text-gray-800"
                         }
                       `}
@@ -484,11 +593,45 @@ export default function OrdersPage() {
                       </Badge>
                     </div>
                     <div className="text-sm text-gray-500">
-                      {activeOrder.customerName}
+                    #{activeOrder.orderNumber}
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* Customer Contact Info */}
+              <div className="px-4 py-3 bg-gray-50">
+                <h3 className="text-sm font-medium mb-2">
+                  Customer Information
+                </h3>
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  {activeOrder.customerPhone && (
+                    <div className="flex items-center">
+                      <Phone className="h-4 w-4 mr-2 text-gray-500" />
+                      <span>{activeOrder.customerPhone}</span>
+                    </div>
+                  )}
+                  {activeOrder.customerEmail && (
+                    <div className="flex items-center">
+                      <Mail className="h-4 w-4 mr-2 text-gray-500" />
+                      <span>{activeOrder.customerEmail}</span>
+                    </div>
+                  )}
+                  {activeOrder.customerAddress && (
+                    <div className="flex items-start mt-1">
+                      <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-0.5" />
+                      <span>{activeOrder.customerAddress}</span>
+                    </div>
+                  )}
+                  {activeOrder.notes && (
+                    <div className="flex items-start mt-1">
+                      <AlertCircle className="h-4 w-4 mr-2 text-gray-500 mt-0.5" />
+                      <span className="text-gray-700">{activeOrder.notes}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Delivery Info */}
               {activeOrder.deliveryStatus && (
                 <div className="px-4 py-3 bg-gray-50">
@@ -497,7 +640,7 @@ export default function OrdersPage() {
                       <div className="text-gray-500">Delivery Status</div>
                       <Badge
                         className={getDeliveryStatusColor(
-                          activeOrder.doordashStatus
+                          activeOrder.doordashStatus || "",
                         )}
                       >
                         {activeOrder?.doordashStatus}
@@ -590,7 +733,7 @@ export default function OrdersPage() {
                 </div>
               </div>
               {/* Sticky Actions bar */}
-              <div className=" static top-0 bottom-0  right-0 p-3 border-t flex items-center bg-transparent shadow-md">
+              <div className="static top-0 bottom-0 right-0 p-3 border-t flex items-center gap-2 bg-transparent shadow-md">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -598,6 +741,18 @@ export default function OrdersPage() {
                 >
                   <Printer className="h-5 w-5" />
                 </Button>
+
+                {/* Only show cancel button if order is not completed or canceled */}
+                {!["COMPLETED", "CANCELED"].includes(activeOrder.status) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleCancelOrder(activeOrder.id)}
+                    className="text-red-600 border-red-200"
+                  >
+                    Cancel Order
+                  </Button>
+                )}
+
                 <div className="flex-1">{getActionButton()}</div>
               </div>
             </div>
@@ -613,23 +768,22 @@ export default function OrdersPage() {
       {/* Modals */}
       {activeOrder && (
         <PrepTimeSetter
-          order={activeOrder}
+          order={activeOrder as any}
           open={showPrepTimeDialog}
           onClose={() => setShowPrepTimeDialog(false)}
           onConfirm={handleAcceptOrder}
         />
       )}
 
-      {newOrderAlert && (
-        <NewOrderAlert
-          order={newOrderAlert}
-          onAccept={() => {
-            setActiveOrder(newOrderAlert);
-            setShowPrepTimeDialog(true);
-          }}
-          onDismiss={() => setNewOrderAlert(null)}
-        />
-      )}
+  
+
+      {/* Create Order Modal */}
+      <CreateOrderModal
+        open={showCreateOrderModal}
+        onClose={() => setShowCreateOrderModal(false)}
+        onCreateOrder={handleCreateOrder}
+        // Replace with your actual store ID or get from context/props
+      />
     </div>
   );
 }

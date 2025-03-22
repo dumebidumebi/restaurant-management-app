@@ -1,12 +1,14 @@
 // /app/api/orders/[id]/print/route.js
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { Order, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function POST(request:NextRequest, { params }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params;
-  
   try {
     // Fetch the order to be printed
     const order = await prisma.order.findUnique({
@@ -42,7 +44,7 @@ export async function POST(request:NextRequest, { params }) {
 }
 
 // This function would integrate with your preferred receipt printing service
-async function printReceiptToService(order) {
+async function printReceiptToService(order: Order) {
   // Example implementation:
   console.log(`Printing receipt for order: ${order.orderNumber}`);
   

@@ -23,6 +23,7 @@ import {
   Settings,
   Store,
 } from "lucide-react";
+import { Badge } from "./ui/badge";
 
 // Menu items.
 const items = [
@@ -32,7 +33,12 @@ const items = [
     icon: Home,
   },
   {
-    title: "Reports",
+    title: (
+      <div className="flex flex-row gap-2">
+        <p>Reports</p>
+        <Badge variant={"outline"}>coming soon</Badge>
+      </div>
+    ),
     url: "/report",
     icon: LineChart,
   },
@@ -44,7 +50,15 @@ const items = [
       { title: "Menu", url: "/store/menu" },
       { title: "Orders", url: "/store/orders" },
       { title: "Order History", url: "/store/order-history" },
-      { title: "Locations", url: "/store/locations" },
+      {
+        title: (
+          <div className="flex flex-row gap-2">
+            <p>Locations</p>
+            <Badge variant={"outline"}>coming soon</Badge>
+          </div>
+        ),
+        url: "/store/locations",
+      },
       // { title: "Reservations", url: "/store/reservations" },
     ],
   },
@@ -71,14 +85,15 @@ export function AppSidebar() {
     <Sidebar variant="sidebar" collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Dashboard app</SidebarGroupLabel>
+          <SidebarGroupLabel className="font-bold text-lg mb-2">
+            Bistrokit
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <Link href={item.url} className="">
-                  <SidebarMenuButton asChild>
-                    
+                    <SidebarMenuButton asChild>
                       <div
                         onClick={() =>
                           item.subItems && toggleCollapse(item.title)
@@ -101,8 +116,7 @@ export function AppSidebar() {
                           </span>
                         )}
                       </div>
-                    
-                  </SidebarMenuButton>
+                    </SidebarMenuButton>
                   </Link>
                   {item.subItems && collapsedItems[item.title] && (
                     <SidebarMenu style={{ marginLeft: "20px" }}>

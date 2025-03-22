@@ -47,7 +47,7 @@ import { MenuManager } from "@/components/MenuManager/menuManager";
 export default function MenuPage() {
   const menu = MENU;
   const [activeTab, setActiveTab] = useState("menus");
-
+  
   const renderTabContent = () => {
     switch (activeTab) {
       case "menus":
