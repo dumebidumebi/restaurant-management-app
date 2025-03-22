@@ -61,7 +61,8 @@ export default function TimeSelector() {
                 )}
               </div>
               <div className="">
-                <p className="font-medium">Schedule your pickup</p> <Badge>coming soon</Badge>
+                <p className="font-medium">Schedule your pickup</p>{" "}
+                <Badge>coming soon</Badge>
               </div>
             </div>
             <div>
@@ -84,7 +85,11 @@ export default function TimeSelector() {
   );
 }
 
-function ScheduleModal({ onClose }) {
+interface ScheduleModalProps {
+  onClose: () => void;
+}
+
+function ScheduleModal({ onClose }: ScheduleModalProps) {
   const { scheduledDate, scheduledTime, setScheduledDate, setScheduledTime } =
     useLocationStore();
 
@@ -105,7 +110,7 @@ function ScheduleModal({ onClose }) {
 
   // Generate time slots
   const generateTimeSlots = () => {
-    const slots = [];
+    const slots: string[] = [];
     // AM slots
     for (let i = 0; i < 24; i++) {
       const hour = i % 12 || 12;
@@ -120,12 +125,12 @@ function ScheduleModal({ onClose }) {
 
   const timeSlots = generateTimeSlots();
 
-  const handleDateSelect = (day, date) => {
+  const handleDateSelect = (day: string, date: string) => {
     setScheduledDate(`${day}, ${date}`);
     setActiveView("time");
   };
 
-  const handleTimeSelect = (time) => {
+  const handleTimeSelect = (time: string) => {
     setScheduledTime(time);
     onClose();
   };

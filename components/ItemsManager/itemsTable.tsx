@@ -123,8 +123,8 @@ export function ItemsTable({
           <div className="flex items-center gap-4">
             {item.imageUrl && (
               <Image
-                width={10}
-                height={10}
+                width={40}
+                height={40}
                 src={item.imageUrl}
                 alt={item.name}
                 className="h-10 w-10 rounded object-cover"
@@ -164,7 +164,6 @@ export function ItemsTable({
             onCheckedChange={(checked: boolean) => {
               onEdit?.({ ...item, isAvailable: checked });
             }}
-            // disabled
           />
         );
       },
@@ -323,7 +322,7 @@ export function ItemsTable({
           </Button>
           {editingItem && (
             <EditItemDialog
-              item={editingItem}
+              item={{ ...editingItem, modifierGroups: [] }}
               open={!!editingItem}
               onOpenChange={(open) => !open && setEditingItem(null)}
               onSuccess={() => {

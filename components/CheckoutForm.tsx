@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { AddressElement, PaymentElement, useCheckout } from "@stripe/react-stripe-js";
+import {
+  AddressElement,
+  PaymentElement,
+  useCheckout,
+} from "@stripe/react-stripe-js";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
@@ -7,11 +11,25 @@ import { ChevronRight, ChevronRightCircle } from "lucide-react";
 import TipComponent from "./Tips";
 import EmailInput from "./EmailInput";
 
+interface FormData {
+  mobileNumber: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  getEmails: boolean;
+  getTexts: boolean;
+}
+
+interface CheckoutError {
+  message: string;
+  code?: string;
+}
+
 export const CheckoutForm = () => {
   const checkout = useCheckout();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [formData, setFormData] = useState({
+  const [error, setError] = useState<CheckoutError | null>(null);
+  const [formData, setFormData] = useState<FormData>({
     mobileNumber: "",
     firstName: "",
     lastName: "",
@@ -21,7 +39,7 @@ export const CheckoutForm = () => {
   });
   const [tipAmount, setTipAmount] = useState<number | null>(null);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
@@ -31,18 +49,18 @@ export const CheckoutForm = () => {
 
   const handleEmailBlur = () => {
     checkout.updateEmail(formData.email).then((result) => {
-      if (result.error) {
-        setError(result.error);
+      if (result.type === "error") {
+        setError({ message: result.error.message });
       }
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     checkout.confirm().then((result) => {
       if (result.type === "error") {
-        setError(result.error);
+        setError({ message: result.error.message });
       }
       setLoading(false);
     });
@@ -106,20 +124,10 @@ export const CheckoutForm = () => {
             <label htmlFor="email" className="block mb-1 font-medium">
               Email address
             </label>
-            {/* <Input
-              id="email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              onBlur={handleEmailBlur}
-              placeholder="Email address"
-              className="w-full p-3"
-            /> */}
-            <EmailInput/>
+            <EmailInput />
           </div>
           <div>
-          <AddressElement options={{mode: 'billing'}}/>
+            <AddressElement options={{ mode: "billing" }} />
           </div>
           <div className="space-y-2 mt-4">
             <div className="flex items-center space-x-2">
@@ -127,7 +135,7 @@ export const CheckoutForm = () => {
                 id="getEmails"
                 name="getEmails"
                 checked={formData.getEmails}
-                onCheckedChange={(checked) =>
+                onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, getEmails: checked })
                 }
                 className="rounded-full h-4 w-4"
@@ -142,7 +150,7 @@ export const CheckoutForm = () => {
                 id="getTexts"
                 name="getTexts"
                 checked={formData.getTexts}
-                onCheckedChange={(checked) =>
+                onCheckedChange={(checked: boolean) =>
                   setFormData({ ...formData, getTexts: checked })
                 }
                 className="rounded-full h-4 w-4"

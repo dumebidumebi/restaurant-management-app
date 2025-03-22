@@ -43,7 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { EditCategoryForm} from "./editCategoryForm";
+import { EditCategoryForm } from "./editCategoryForm";
 import { Category, Item } from "@prisma/client";
 
 export function CategoriesTable({
@@ -118,7 +118,6 @@ export function CategoriesTable({
             onCheckedChange={(checked: boolean) => {
               onEdit?.({ ...item, isAvailable: checked });
             }}
-            // disabled
           />
         );
       },
@@ -172,7 +171,6 @@ export function CategoriesTable({
       rowSelection,
     },
   });
-
 
   return (
     <div className="w-full">
@@ -278,7 +276,7 @@ export function CategoriesTable({
           </Button>
           {editingItem && (
             <EditCategoryForm
-              category={editingItem}
+              category={{ ...editingItem, items: [] }}
               open={!!editingItem}
               onOpenChange={(open) => !open && setEditingItem(null)}
               onSuccess={() => {
