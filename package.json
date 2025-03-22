@@ -8,8 +8,7 @@
     "build:skip-types": "tsc --noEmit && next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit",
-    "postinstall": "prisma generate"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@bytescale/sdk": "^3.51.0",

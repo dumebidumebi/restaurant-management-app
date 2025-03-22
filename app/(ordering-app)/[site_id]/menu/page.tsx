@@ -31,7 +31,7 @@ import LocationSummary from "@/components/LocationSummary";
 import { useRouter } from "next/router";
 
 import { getSiteMenu } from "@/lib/get-site-menu";
-import { Modifier } from "@/prisma/generated/client";
+import { Modifier } from "@prisma/client";
 
 
 export default function MenuPage() {
