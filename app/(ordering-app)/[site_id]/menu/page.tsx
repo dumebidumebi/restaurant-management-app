@@ -29,8 +29,9 @@ import logo from "@/images/chikin_logo.png";
 import LocationDialog from "@/components/LocationDialog";
 import LocationSummary from "@/components/LocationSummary";
 import { useRouter } from "next/router";
-import { Modifier } from "@prisma/client";
+
 import { getSiteMenu } from "@/lib/get-site-menu";
+import { Modifier } from "@/prisma/generated/client";
 
 
 export default function MenuPage() {

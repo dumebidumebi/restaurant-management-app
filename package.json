@@ -4,14 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --no-lint",
+    "build": "prisma generate && next build --no-lint",
     "build:skip-types": "tsc --noEmit && next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
-
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@bytescale/sdk": "^3.51.0",
