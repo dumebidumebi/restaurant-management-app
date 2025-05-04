@@ -53,16 +53,16 @@ function HeaderWeb() {
             <Link href={"/menu"}>
               <Button variant={"default"}>Order Online</Button>
             </Link>
-            {/* <SignedIn>
-        <UserButton />
-        <OrganizationSwitcher createOrganizationUrl="/clerk/create-org"/>
+            <SignedIn>
+        {/* <UserButton /> */}
+        {/* <OrganizationSwitcher createOrganizationUrl="/clerk/create-org"/> */}
         
         </SignedIn>
         <SignedOut>
         <Link href={"/clerk/sign-up"}>
           <Button className="rounded-sm" size={"sm"}>Sign Up</Button>
         </Link>
-      </SignedOut> */}
+      </SignedOut>
           </div>
           <div className="flex items-center space-x-4 sm:hidden">
             <HeaderMobile />

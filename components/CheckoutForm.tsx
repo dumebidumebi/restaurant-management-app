@@ -1,190 +1,196 @@
-import React, { useState } from "react";
+"use client";
+
+import { useState, useEffect } from "react";
 import {
-  AddressElement,
   PaymentElement,
-  useCheckout,
+  useStripe,
+  useElements,
+  Elements,
 } from "@stripe/react-stripe-js";
-import { Input } from "./ui/input";
-import { Button } from "./ui/button";
-import { Checkbox } from "./ui/checkbox";
-import { ChevronRight, ChevronRightCircle } from "lucide-react";
-import TipComponent from "./Tips";
-import EmailInput from "./EmailInput";
+import { loadStripe } from "@stripe/stripe-js";
 
-interface FormData {
-  mobileNumber: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  getEmails: boolean;
-  getTexts: boolean;
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+);
+
+interface PaymentFormProps {
+  clientSecret: string;
+  onSuccess: (paymentIntent: any) => void;
+  onError: (error: any) => void;
 }
 
-interface CheckoutError {
-  message: string;
-  code?: string;
-}
+function PaymentForm({ clientSecret, onSuccess, onError }: PaymentFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [message, setMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-export const CheckoutForm = () => {
-  const checkout = useCheckout();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<CheckoutError | null>(null);
-  const [formData, setFormData] = useState<FormData>({
-    mobileNumber: "",
-    firstName: "",
-    lastName: "",
-    email: "",
-    getEmails: true,
-    getTexts: false,
-  });
-  const [tipAmount, setTipAmount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!stripe || !elements) {
+      return;
+    }
+  }, [stripe, elements]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value,
-    });
-  };
-
-  const handleEmailBlur = () => {
-    checkout.updateEmail(formData.email).then((result) => {
-      if (result.type === "error") {
-        setError({ message: result.error.message });
-      }
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    checkout.confirm().then((result) => {
-      if (result.type === "error") {
-        setError({ message: result.error.message });
+
+    if (!stripe || !elements) return;
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      // Step 1: Use Elements to create a payment method
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        setMessage(submitError.message || "An error occurred");
+        onError(submitError);
+        setIsLoading(false);
+        return;
       }
-      setLoading(false);
-    });
+
+      // Step 2: Get PaymentMethod ID
+      const { error, paymentMethod } = await stripe.createPaymentMethod({
+        elements,
+      });
+
+      if (error) {
+        setMessage(error.message || "An error occurred");
+        onError(error);
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: Call our backend API to confirm the payment
+      const response = await fetch("/api/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clientSecret,
+          paymentMethodId: paymentMethod?.id,
+          returnUrl: `${window.location.origin}/payment-success`,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setMessage(result.error || "Payment confirmation failed");
+        onError(result.error);
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 4: Handle next actions if needed (3D Secure, etc.)
+      if (result.paymentIntent.next_action) {
+        const { error: actionError } = await stripe.handleNextAction({
+          clientSecret,
+        });
+
+        if (actionError) {
+          setMessage(actionError.message || "Payment authentication failed");
+          onError(actionError);
+          setIsLoading(false);
+          return;
+        }
+
+        // After handling the action, check payment status again
+        const statusResponse = await fetch("/api/confirm", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ clientSecret }),
+        });
+
+        const statusResult = await statusResponse.json();
+        
+        if (statusResult.paymentIntent.status === "succeeded" ||
+            statusResult.paymentIntent.status === "requires_capture") {
+          setMessage("Payment successful!");
+          onSuccess(statusResult.paymentIntent);
+        } else {
+          setMessage(`Payment status: ${statusResult.paymentIntent.status}`);
+        }
+      } else if (result.paymentIntent.status === "succeeded" || 
+                result.paymentIntent.status === "requires_capture") {
+        // Payment succeeded without additional actions
+        setMessage("Payment successful!");
+        onSuccess(result.paymentIntent);
+      } else {
+        setMessage(`Payment status: ${result.paymentIntent.status}`);
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      setMessage("An unexpected error occurred. Please try again.");
+      onError(error);
+    }
+
+    setIsLoading(false);
+  };
+
+  const paymentElementOptions = {
+    layout: "accordion" as const,
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-screen">
-      {/* Your Information Section */}
-      <div>
-        <h2 className="text-2xl font-medium mb-1">Your information</h2>
-        <p className="mb-4 text-gray-600">
-          <span className="underline">Sign in</span> to use your saved
-          information.
-        </p>
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <PaymentElement id="payment-element" options={paymentElementOptions} />
 
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="mobileNumber" className="block mb-1 font-medium">
-              Mobile number
-            </label>
-            <Input
-              id="mobileNumber"
-              name="mobileNumber"
-              value={formData.mobileNumber}
-              onChange={handleInputChange}
-              placeholder="(555) 555-5555"
-              className="w-full p-3"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="firstName" className="block mb-1 font-medium">
-                First name
-              </label>
-              <Input
-                id="firstName"
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleInputChange}
-                placeholder="First name"
-                className="w-full p-3"
-              />
-            </div>
-            <div>
-              <label htmlFor="lastName" className="block mb-1 font-medium">
-                Last name
-              </label>
-              <Input
-                id="lastName"
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleInputChange}
-                placeholder="Last name"
-                className="w-full p-3"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block mb-1 font-medium">
-              Email address
-            </label>
-            <EmailInput />
-          </div>
-          <div>
-            <AddressElement options={{ mode: "billing" }} />
-          </div>
-          <div className="space-y-2 mt-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="getEmails"
-                name="getEmails"
-                checked={formData.getEmails}
-                onCheckedChange={(checked: boolean) =>
-                  setFormData({ ...formData, getEmails: checked })
-                }
-                className="rounded-full h-4 w-4"
-              />
-              <label htmlFor="getEmails" className="text-sm font-light">
-                Get promotional emails from us
-              </label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="getTexts"
-                name="getTexts"
-                checked={formData.getTexts}
-                onCheckedChange={(checked: boolean) =>
-                  setFormData({ ...formData, getTexts: checked })
-                }
-                className="rounded-full h-4 w-4"
-              />
-              <label htmlFor="getTexts" className="text-sm font-light">
-                Get promotional texts from us
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Payment Section */}
-      <div>
-        <h2 className="text-2xl font-medium my-4">Payment</h2>
-
-        <div className="space-y-4">
-          <PaymentElement options={{ layout: "accordion" }} />
-        </div>
-      </div>
-
-      <Button
-        type="submit"
-        disabled={loading}
-        className="w-full py-4 text-base  text-white rounded-md mt-4 flex items-center justify-center"
+      <button
+        disabled={isLoading || !stripe || !elements}
+        className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:opacity-50"
+        id="submit"
       >
-        Place Order {loading ? "..." : <ChevronRight />}
-      </Button>
+        <span id="button-text">{isLoading ? "Processing..." : "Pay Now"}</span>
+      </button>
 
-      {error && (
-        <div className="p-4 bg-red-100 text-red-700 rounded">
-          {error.message}
+      {message && (
+        <div className="text-center text-sm mt-4" id="payment-message">
+          {message}
         </div>
       )}
     </form>
   );
-};
+}
+
+interface CheckoutFormProps {
+  clientSecret: string | null;
+  onSuccess: (paymentIntent: any) => void;
+  onError: (error: any) => void;
+}
+
+export default function CheckoutForm({
+  clientSecret,
+  onSuccess,
+  onError,
+}: CheckoutFormProps) {
+  const appearance = {
+    theme: "stripe" as const,
+  };
+
+  if (!clientSecret) {
+    return <div>Loading...</div>; // Or display an error message
+  }
+  const options = {
+    appearance,
+    clientSecret,
+    paymentMethodCreation: 'manual' as const,
+  };
+
+
+  return (
+    <Elements
+      stripe={stripePromise}
+      options={options}
+    >
+      <PaymentForm
+        clientSecret={clientSecret}
+        onSuccess={onSuccess}
+        onError={onError}
+      />
+    </Elements>
+  );
+}

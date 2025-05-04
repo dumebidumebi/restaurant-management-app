@@ -33,17 +33,17 @@ import { useRouter } from "next/router";
 import { getSiteMenu } from "@/lib/get-site-menu";
 import { Modifier } from "@prisma/client";
 
-
 export default function MenuPage() {
   const params = useParams();
-
+  const siteId = params.site_id;
   const [siteMenu, setSiteMenu] = useState<any>(null); // Replace 'any' with the correct type if needed
+
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({});
   const [selectedModifiers, setSelectedModifiers] = useState<{
     [key: string]: any;
   }>({});
   const { addToCart } = useCartStore();
-  const siteId = params.site_id;
+  
 
   useEffect(() => {
     async function loadMenu() {
@@ -132,13 +132,15 @@ export default function MenuPage() {
                           key={item.id}
                           className="border rounded-lg  shadow hover:shadow-lg p-4 transition flex  h-40 flex-row"
                         >
-                          <Image
-                            src={item.imageUrl}
-                            alt={item.name}
-                            width={150}
-                            height={150}
-                            className=" rounded-t-lg object-contain"
-                          />
+                          {item.imageUrl !== "" && (
+                            <Image
+                              src={item.imageUrl}
+                              alt={item.name}
+                              width={150}
+                              height={150}
+                              className=" rounded-t-lg object-contain"
+                            />
+                          )}
 
                           <div className="ml-4 text-left">
                             <h4 className="text-md font-bold text-gray-900 overflow-clip">
@@ -160,15 +162,17 @@ export default function MenuPage() {
                       </DialogTrigger>
                       <DialogContent className="w-5/6 h-fit flex flex-col justify-between rounded-md">
                         <DialogHeader className="my-10">
-                          <div className="flex flex-row items-start">
-                            <Image
-                              src={item.imageUrl}
-                              alt={item.name}
-                              width={158}
-                              height={158}
-                              className="object-cover rounded-t-lg"
-                            />
-                          </div>
+                          {item.imageUrl !== "" && (
+                            <div className="flex flex-row items-start">
+                              <Image
+                                src={item.imageUrl}
+                                alt={item.name}
+                                width={158}
+                                height={158}
+                                className="object-cover rounded-t-lg"
+                              />
+                            </div>
+                          )}
                           <DialogTitle className="text-left">
                             {item.name}
                           </DialogTitle>
@@ -307,7 +311,9 @@ export default function MenuPage() {
                                   quantity: currentQuantity,
                                   imageUrl: item.imageUrl,
                                   stripePriceId: item.stripePriceId,
-                                  modifiers: item.modifiers? item.modifiers: [],
+                                  modifiers: item.modifiers
+                                    ? item.modifiers
+                                    : [],
                                   // Initialize modifiers as empty array
                                 };
 

@@ -25,16 +25,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    console.log("orders", orders)
+
     // Cache the result for 1 minute
     await redis.set("store_orders", JSON.stringify(orders));
 
     return NextResponse.json(orders);
   } catch (error) {
-    console.error("Failed to fetch orders:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch orders" },
-      { status: 500 }
-    );
+    // console.error("Failed to fetch orders:", error);
+    return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
+
   }
 }
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     // Create the order
     const order = await prisma.order.create({
       data: {
-        stripeCheckoutSessionId: `manual-${uuidv4()}`, // Manual order identifier
+      
         orderNumber,
         status: OrderStatus.NEW,
         items: {

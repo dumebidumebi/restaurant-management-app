@@ -1,222 +1,199 @@
-import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { NextRequest, NextResponse } from "next/server";
-import { doordash } from "@/lib/doordash";
-import { v4 as uuidv4 } from "uuid";
-import { getAccessToken } from "uber-direct/auth";
-import { createDeliveriesClient } from "uber-direct/deliveries";
+import Stripe from "stripe";
+import { OrderStatus } from "@prisma/client"; // Import the OrderStatus enum
+import { v4 as uuidv4, validate as uuidValidate } from "uuid"; // Import UUID validator
 
 export async function POST(req: NextRequest) {
-  const sig = req.headers.get("stripe-signature") as string;
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-  const token = await getAccessToken();
-  const deliveriesClient = createDeliveriesClient(token);
+  const sig = req.headers.get("stripe-signature")!;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
+  let event;
   try {
-    const event = stripe.webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       await req.text(),
       sig,
-      endpointSecret
+      webhookSecret
     );
-    const object = event.data.object as Stripe.Checkout.Session;
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
 
-    // Only process checkout.session.completed events
-    if (event.type === "checkout.session.completed") {
-      console.log("Processing completed checkout:", object.id);
+  console.log("webby hooky baby", event);
 
-      // Retrieve the Checkout Session to get line items
-      const checkoutSession = await stripe.checkout.sessions.retrieve(
-        object.id,
-        {
-          expand: ["line_items"],
-        }
-      );
+  switch (event.type) {
+    case "payment_intent.succeeded":
+      await handlePaymentIntentSucceeded(event.data.object);
+      break;
 
-      // Extract customer details
-      const customerEmail = checkoutSession.customer_details?.email || "";
-      const customerName = `${checkoutSession.metadata?.recipientFirstName} ${checkoutSession.metadata?.recipientLastName}`; // From metadata
-      const customerPhone = checkoutSession.metadata?.recipientPhone; // From metadata
-      const customerAddress = checkoutSession.metadata?.deliveryAddress || ""; // Corrected this
-      const subtotal = checkoutSession.amount_subtotal || 0;
-      const tax = checkoutSession.total_details?.amount_tax || 0;
-      const total = checkoutSession.amount_total || 0;
-      const paymentIntentId = checkoutSession.payment_intent as string;
+    case "payment_intent.payment_failed":
+      await handlePaymentIntentFailed(event.data.object);
+      break;
 
-      // Extract delivery-related metadata
-      const deliveryType =
-        (checkoutSession.metadata?.deliveryType as "pickup" | "delivery") ||
-        "pickup";
-      const deliveryApt = checkoutSession.metadata?.deliveryApt || "";
-      const deliveryInstructions =
-        checkoutSession.metadata?.deliveryInstructions || "";
-      const recipientFirstName =
-        checkoutSession.metadata?.recipientFirstName || "";
-      const recipientLastName =
-        checkoutSession.metadata?.recipientLastName || "";
-      const recipientPhone = checkoutSession.metadata?.recipientPhone || "";
-      const scheduledTime = checkoutSession.metadata?.scheduledTime || "";
-      const scheduledDate = checkoutSession.metadata?.scheduledDate || "";
-      const selectedLocation = checkoutSession.metadata?.selectedLocation || "";
+    case "payment_intent.canceled":
+      await handlePaymentIntentCanceled(event.data.object);
+      break;
 
-      // Create order items from line items
-      const lineItems = checkoutSession.line_items?.data;
-      if (!lineItems)
-        return NextResponse.json(
-          { error: "No line items found" },
-          { status: 400 }
-        );
+    case "payment_intent.amount_capturable_updated":
+      await handlePaymentIntentAmountCapturableUpdated(event.data.object);
+      break;
+  }
 
-      const orderItems = lineItems.map((item) => ({
-        name: item.description || "",
-        quantity: item.quantity || 1,
-        price: item.price?.unit_amount ? item.price.unit_amount / 100 : 0, // Convert from cents to dollars
-        notes: "", // Add any notes if needed
-        itemId: item.price?.product as string, // Reference to the original item if available
-      }));
+  return NextResponse.json({ received: true });
+}
 
-      // Find the store ID based on an item in the checkout
-      let storeId: string | null = null;
+async function handlePaymentIntentAmountCapturableUpdated(
+  paymentIntent: Stripe.PaymentIntent
+) {
+  console.log(
+    `Payment Intent ${paymentIntent.id} amount_capturable_updated to ${paymentIntent.amount_capturable}`
+  );
 
-      for (const item of lineItems) {
-        const stripeProductId = item.price?.product as string;
+  try {
+    // Check for existing order
+    const existingOrder = await prisma.order.findFirst({
+      where: { paymentIntentId: paymentIntent.id },
+    });
 
-        // Find the item in the database using the stripeProductId
-        const dbItem = await prisma.item.findFirst({
-          where: { stripeProductId },
-          include: { user: true },
-        });
-
-        if (dbItem) {
-          // Find the store associated with the user
-          const store = await prisma.store.findFirst({
-            where: { ownerId: dbItem.userId },
-          });
-
-          if (store) {
-            storeId = store.id;
-            break; // Exit the loop once we find the store
-          }
-        }
-      }
-
-      if (!storeId) {
-        return NextResponse.json(
-          { error: "No store found for this order" },
-          { status: 400 }
-        );
-      }
-
-      let deliveryFee = 0;
-      let deliveryId: string | null = null; // Initialize as null
-      let delivery;
-
-      if (deliveryType === "delivery") {
-        // Hardcoded addresses as specified
-        const pickupAddress = {
-          street_address: ["376 Jefferson Rd", ""],
-          state: "NY",
-          city: "Rochester",
-          zip_code: "14623",
-          country: "US",
-        };
-
-        // Convert customerAddress string to required object
-        const customerAddressObject = parseAddressString(customerAddress);
-        const dropoffAddress = {
-          street_address: [customerAddressObject.streetAddress, deliveryApt],
-          state: customerAddressObject.state,
-          city: customerAddressObject.city,
-          zip_code: customerAddressObject.zipCode,
-          country: customerAddressObject.country,
-        };
-
-        const deliveryRequest = {
-          pickup_name: "Just Chik'n",
-          pickup_address: JSON.stringify(pickupAddress),
-          pickup_phone_number: "+15555555555",
-          dropoff_name: recipientFirstName + " " + recipientLastName,
-          dropoff_address: JSON.stringify(dropoffAddress),
-          dropoff_phone_number: recipientPhone,
-          manifest_items: orderItems.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-            size: "small",
-            price: item.price * 100,
-          })),
-        };
-
-        console.log("DELIVERY REQUEST",(deliveryRequest))
-
-        delivery = await deliveriesClient.createDelivery(deliveryRequest);
-        console.log("UBER EATS MADE DELIVERY", delivery);
-
-        // Handle DoorDash delivery (placeholder - you'd need to implement this)
-        // const payload = {
-        //   external_delivery_id: uuidv4(),
-        //   pickup_address: "376 Jefferson Rd, Rochester, NY, 14623",
-        //   pickup_business_name: "Just Chik'n",
-        //   pickup_phone_number: "+15855551234",
-        //   dropoff_address: customerAddress,
-        //   dropoff_phone_number: recipientPhone,
-        //   order_value: total,
-        //   locale: "en-US",
-        //   pickup_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        // };
-        // const response = await doordash.createDelivery(payload);
-
-        deliveryFee = delivery.fee / 100;
-        deliveryId = delivery.id;
-      }
-
-      // Create the order with the store information
-      const order = await prisma.order.create({
-        data: {
-          orderNumber: `ORD-${Date.now()}`,
-          status: "NEW",
-          items: {
-            create: orderItems,
-          },
-          subtotal: subtotal / 100,
-          tax: tax / 100,
-          total: total / 100,
-          customerName,
-          customerPhone,
-          customerEmail,
-          customerAddress,
-          notes: deliveryInstructions, // Use delivery instructions as notes
-
-          paymentIntentId,
-          stripeCheckoutSessionId: checkoutSession.id,
-          deliveryFee: deliveryFee,
-          deliveryId: (deliveryType === 'delivery' ? deliveryId : null),
-          storeId: storeId,
-          doordashTrackingUrl: delivery?.tracking_url ?? null, // Optional chaining
-          doordashFee: delivery?.fee / 100 ?? null, // Optional chaining
-          doordashStatus: delivery?.delivery_status ?? null, // Optional chaining
-          pickupTimeEstimated: delivery?.pickup_eta ?? null, // Optional chaining
-          dropoffTimeEstimated: delivery?.dropoff_eta ?? null, // Optional chaining
-        },
-        include: {
-          items: true,
-        },
-      });
-
-      // Update orders in Redis cache
-      await updateOrdersCache();
-
-      console.log("Order created:", order.orderNumber);
+    if (existingOrder) {
+      console.log(`Order already exists for PI: ${paymentIntent.id}`);
+      return;
     }
 
-    return NextResponse.json({ received: true }, { status: 200 });
-  } catch (err: any) {
-    console.error(`Webhook Error: ${err}`);
-    return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
-      { status: 400 }
-    );
+    // Parse metadata
+    const metadata = paymentIntent.metadata;
+    console.log("Metadata before parsing:", metadata);
+    const cartItemsString = metadata.cartItems || "[]";
+    console.log("cartItemsString:", cartItemsString);
+
+    let cartItems;
+    try {
+      cartItems = JSON.parse(cartItemsString);
+      console.log("Parsed cartItems:", cartItems);
+    } catch (jsonError: any) {
+      console.error("Error parsing cartItems JSON:", jsonError.message);
+      throw new Error(`Invalid cartItems JSON: ${jsonError.message}`);
+    }
+
+    const deliveryFee = parseFloat(metadata.deliveryFee || "0");
+    const tipAmount = parseFloat(metadata.tipAmount || "0");
+
+    // Calculate amounts
+    const subtotal = cartItems.reduce((total: number, item: any) => {
+      const itemTotal = item.price * item.quantity;
+      const modifiersTotal = (item.modifiers || []).reduce(
+        (sum: number, mod: any) => sum + mod.price * item.quantity,
+        0
+      );
+      return total + itemTotal + modifiersTotal;
+    }, 0);
+
+    const tax = subtotal * 0.08;
+    const total = subtotal + tax + tipAmount + deliveryFee;
+
+    // Create order items
+    const orderItems = cartItems.map((item: any) => ({
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      modifiers: JSON.stringify(item.modifiers || []),
+      itemId: item.id || null,
+      notes: item.notes || null,
+    }));
+
+    let storeId: string | undefined = metadata.storeId;
+
+    // Validate storeId
+    if (storeId) {
+      if (!uuidValidate(storeId)) {
+        console.error("Invalid storeId in metadata:", metadata.storeId);
+        storeId = undefined; // Set to undefined if invalid
+      }
+    } else {
+      console.log("storeId is missing in metadata.");
+      storeId = undefined; // Set to undefined if missing
+    }
+
+    const orderData = {
+      orderNumber: `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      status: OrderStatus.NEW, // Use the enum value
+      paymentIntentId: paymentIntent.id,
+      paymentStatus: paymentIntent.status,
+      subtotal,
+      tax,
+      tip: tipAmount,
+      deliveryFee,
+      total,
+      customerName: `${metadata.recipientFirstName} ${metadata.recipientLastName}`.trim(),
+      customerPhone: metadata.recipientPhone,
+      customerEmail: metadata.customerEmail,
+      customerAddress: metadata.deliveryAddress,
+      notes: metadata.deliveryInstructions,
+      storeId: metadata.storeId, // Use the validated storeId (can be undefined)
+      deliveryQuoteId: metadata.deliveryQuoteId,
+      items: { create: orderItems },
+    };
+
+    console.log("Order data before Prisma create:", orderData);
+
+    // Create order
+    const order = await prisma.order.create({
+      data: orderData,
+    });
+
+    console.log(`Created order ${order.id} for PI ${paymentIntent.id}`);
+    await updateOrdersCache();
+  } catch (error: any) {
+    if (error instanceof Error) {
+      console.error("Order creation failed:", error.message);
+    } else {
+      console.error("An unknown error occurred during order creation:", error);
+    }
+    throw error;
   }
+}
+
+async function handlePaymentIntentSucceeded(
+  paymentIntent: Stripe.PaymentIntent
+) {
+  // Only update the existing order, don't create a new one
+  await prisma.order.updateMany({
+    where: { paymentIntentId: paymentIntent.id },
+    data: {
+      paymentStatus: paymentIntent.status,
+    },
+  });
+  
+  console.log(`Updated order status for PI ${paymentIntent.id}`);
+  await updateOrdersCache();
+}
+
+async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  console.log("Payment failed for order");
+  await prisma.order.updateMany({
+    where: { paymentIntentId: paymentIntent.id },
+    data: {
+      status: "CANCELED",
+      paymentStatus: "failed",
+      notes: `Payment failed: ${paymentIntent.last_payment_error?.message}`,
+    },
+  });
+  await updateOrdersCache();
+}
+
+async function handlePaymentIntentCanceled(
+  paymentIntent: Stripe.PaymentIntent
+) {
+  await prisma.order.updateMany({
+    where: { paymentIntentId: paymentIntent.id },
+    data: {
+      status: "CANCELED",
+      paymentStatus: "canceled",
+    },
+  });
+  await updateOrdersCache();
 }
 
 // Helper function to parse the address string into required object

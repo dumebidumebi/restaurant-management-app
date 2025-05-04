@@ -7,7 +7,7 @@ import { getUberAuthToken, getUberDeliveryQuotes } from "@/lib/uber";
 import { redis } from "@/lib/redis";
 
 // Function to parse address string into required format
-function parseDeliveryAddress(addressString: string, apt?: string) {
+export function parseDeliveryAddress(addressString: string, apt?: string) {
   // Default return for safety
   const defaultAddress = {
     street_address: ["", ""],

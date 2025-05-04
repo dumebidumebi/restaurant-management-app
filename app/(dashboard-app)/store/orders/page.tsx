@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ShadCN UI Components
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // Lucide Icons
 import {
@@ -19,25 +25,29 @@ import {
   ChevronDown,
   Filter,
   CheckCircle,
-  Truck,
   ExternalLink,
   MapPin,
   Phone,
   Mail,
   AlertCircle,
   Plus,
+  Edit,
+  Truck,
 } from "lucide-react";
 
 // Custom Components
-import PrepTimeSetter from "@/components/PrepTimeSetter";
-import NewOrderAlert from "@/components/NewOrderAlert";
 import CreateOrderModal from "@/components/CreateOrderModal";
+import EditOrderModal from "@/components/EditOrderModal";
 
 // Types
 interface OrderItem {
+  id?: string;
   name: string;
   quantity: number;
   price: number;
+  modifiers?: any[];
+  notes?: string | null;
+  itemId?: string | null;
 }
 
 interface Order {
@@ -45,29 +55,34 @@ interface Order {
   status: string;
   orderNumber: string;
   customerName: string;
-  customerPhone?: string;
-  customerEmail?: string;
-  customerAddress?: string;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  customerAddress?: string | null;
   total: number;
   subtotal: number;
   tax: number;
-  deliveryFee?: number;
+  tip?: number | null;
+  deliveryFee?: number | null;
   items: OrderItem[];
-  deliveryStatus?: string;
-  tracking_url?: string;
-  dasherName?: string;
-  dasherPhone?: string;
-  pickup_time_estimated?: string;
-  dropoff_time_estimated?: string;
-  doordashStatus?: string;
-  deliveryId?: string;
-  notes?: string;
-  courierDetail?: {
-    name?: string;
-    phone?: string;
-  };
-  support_reference?: string;
-  fee?: number;
+  notes?: string | null;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  paymentIntentId?: string | null;
+  paymentStatus?: string | null;
+  deliveryId?: string | null;
+  deliveryStatus?: string | null;
+  uberStatus?: string | null;
+  uberTrackingUrl?: string | null;
+  dasherName?: string | null;
+  dasherPhone?: string | null;
+  estimatedPickupTime?: string | null;
+  estimatedDropoffTime?: string | null;
+  doordashTrackingUrl?: string | null;
+  doordashFee?: number | null;
+  doordashStatus?: string | null;
+  pickupTimeEstimated?: string | null;
+  dropoffTimeEstimated?: string | null;
+  supportReference?: string | null;
 }
 
 interface CreateOrderData {
@@ -85,213 +100,364 @@ interface CreateOrderData {
   }[];
 }
 
-export default function OrdersPage() {
+interface EditOrderData {
+  orderId: string;
+  currentItems: OrderItem[];
+  customerName: string;
+  paymentIntentId: string | null;
+}
+
+interface PrepTimeSetterProps {
+  order: Order | null;
+  onClose: () => void;
+  onConfirm: (prepTime: number) => void;
+}
+
+const PrepTimeSetter: React.FC<PrepTimeSetterProps> = ({
+  order,
+  onClose,
+  onConfirm,
+}) => {
+  const [prepTime, setPrepTime] = useState<number>(30);
+
+  return (
+    <Dialog open={!!order} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Set Preparation Time</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="mb-4">
+            Set preparation time for order #{order?.orderNumber}
+          </p>
+          <div className="flex items-center">
+            <Input
+              type="number"
+              value={prepTime}
+              onChange={(e) => setPrepTime(Number(e.target.value))}
+              className="mr-2"
+              min={1}
+            />
+            <span>minutes</span>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => onConfirm(prepTime)}>Confirm</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const OrdersPage = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [activeTab, setActiveTab] = useState("new");
+  const [activeTab, setActiveTab] = useState<
+    "new" | "inProgress" | "completed"
+  >("new");
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const [showPrepTimeDialog, setShowPrepTimeDialog] = useState(false);
-  const [newOrderAlert, setNewOrderAlert] = useState<Order | null>(null);
-  const [isSoundPlaying, setIsSoundPlaying] = useState(false);
+  const [prepTimeOrder, setPrepTimeOrder] = useState<Order | null>(null);
+  const [newOrderAlertVisible, setNewOrderAlertVisible] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showEditOrderModal, setShowEditOrderModal] = useState(false);
+  const [orderToEdit, setOrderToEdit] = useState<EditOrderData | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
 
-  // Group orders by status
-  const groupedOrders = {
-    new: orders.filter((order) => order.status === "NEW"),
-    inProgress: orders.filter((order) =>
-      ["ACCEPTED", "PREPARING", "READY"].includes(order.status),
+  const groupOrders = (ordersToGroup: Order[]) => ({
+    new: ordersToGroup.filter((order) => order.status === "NEW"),
+    inProgress: ordersToGroup.filter((order) =>
+      ["ACCEPTED", "PREPARING", "READY"].includes(order.status)
     ),
-    completed: orders.filter((order) =>
-      ["COMPLETED", "CANCELED"].includes(order.status),
+    completed: ordersToGroup.filter((order) =>
+      ["COMPLETED", "CANCELED"].includes(order.status)
     ),
-  };
+  });
+
+  const groupedOrders = groupOrders(orders);
+
+  const fetchOrders = useCallback(
+    async (isInitial = false) => {
+      if (isFetching && !isInitial) return;
+      setIsFetching(true);
+      console.log("Fetching orders...");
+      try {
+        const response = await fetch("/api/orders");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: Order[] = await response.json();
+
+        setOrders((prevOrders) => {
+          const currentNewOrderIds = new Set(
+            prevOrders.filter((o) => o.status === "NEW").map((o) => o.id)
+          );
+          const incomingNewOrders = data.filter((o) => o.status === "NEW");
+          const hasTrulyNewOrder = incomingNewOrders.some(
+            (o) => !currentNewOrderIds.has(o.id)
+          );
+
+          if (hasTrulyNewOrder && !isInitial) {
+            playAudio();
+            setNewOrderAlertVisible(true);
+            setTimeout(() => setNewOrderAlertVisible(false), 5000);
+          }
+          return data;
+        });
+      } catch (error: any) {
+        console.error("Failed to fetch orders:", error);
+      } finally {
+        setIsFetching(false);
+      }
+    },
+    [isFetching]
+  );
 
   useEffect(() => {
     audioRef.current = new Audio(
-      "https://upcdn.io/223k23J/raw/notification.mp3",
+      "https://upcdn.io/223k23J/raw/notification.mp3"
     );
-    fetchOrders();
+    fetchOrders(true);
 
-    // Set up polling for new orders
-    const interval = setInterval(fetchOrders, 30000);
-
-    // Refresh when window gains focus
-    window.addEventListener("focus", fetchOrders);
+    const interval = setInterval(() => fetchOrders(), 30000);
+    window.addEventListener("focus", () => fetchOrders());
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener("focus", fetchOrders);
+      window.removeEventListener("focus", () => fetchOrders());
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, []);
 
   useEffect(() => {
-    // When active tab changes, select the first order in that tab
     const currentTabOrders =
       groupedOrders[activeTab as keyof typeof groupedOrders];
 
     if (currentTabOrders.length > 0) {
-      const currentOrderStillVisible = currentTabOrders.find(
-        (order) => order.id === activeOrder?.id,
+      const activeOrderStillVisible = currentTabOrders.find(
+        (order) => order.id === activeOrder?.id
       );
-      setActiveOrder(currentOrderStillVisible || currentTabOrders[0]);
+      if (activeOrderStillVisible) {
+        setActiveOrder(activeOrderStillVisible);
+      } else {
+        setActiveOrder(currentTabOrders[0]);
+      }
     } else {
       setActiveOrder(null);
     }
-  }, [activeTab, orders]);
-
-  const fetchOrders = async () => {
-    try {
-      const response = await fetch("/api/orders");
-      const data = await response.json();
-
-      setOrders(data);
-
-      // Check if we have new orders that need alerts
-      const newOrders = data.filter((order: Order) => order.status === "NEW");
-      if (
-        newOrders.length > 0 &&
-        newOrders.length > groupedOrders.new.length
-      ) {
-        playAudio();
-        if (!newOrderAlert) {
-          setNewOrderAlert(newOrders[0]);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch orders:", error);
-    }
-  };
+  }, [activeTab, orders, groupedOrders]);
 
   const playAudio = () => {
     if (audioRef.current) {
       audioRef.current.play().catch((error) => {
-        console.error("Failed to play audio:", error);
+        console.warn(
+          "Audio play failed (possibly due to autoplay restrictions):",
+          error
+        );
       });
-      setIsSoundPlaying(true);
     }
   };
 
-  const handleAcceptOrder = async (prepTime: number) => {
-    if (!activeOrder) return;
+  const handleAcceptOrderWithPrepTime = (order: Order) => {
+    setPrepTimeOrder(order);
+  };
 
-    const originalOrder = { ...activeOrder }; // Store original order
-    const originalOrders = [...orders]; // Store original orders
+  const handleClosePrepTime = () => {
+    setPrepTimeOrder(null);
+  };
 
-    // Optimistically update the UI
-    const updatedOrder = { ...activeOrder, status: "ACCEPTED" };
-    setActiveOrder(updatedOrder);
+  const handleConfirmPrepTime = async (prepTime: number) => {
+    if (!prepTimeOrder) {
+      alert("No order selected for prep time.");
+      return;
+    }
+
+    const originalOrder = { ...prepTimeOrder };
+    const originalOrders = [...orders];
+    const originalTab = activeTab;
+
+    // Optimistic UI update
+    setActiveOrder({ ...prepTimeOrder, status: "ACCEPTED" });
     setOrders((prevOrders) =>
       prevOrders.map((order) =>
-        order.id === activeOrder.id ? updatedOrder : order,
-      ),
+        order.id === prepTimeOrder.id ? { ...order, status: "ACCEPTED" } : order
+      )
     );
-    setShowPrepTimeDialog(false);
+    setActiveTab("inProgress");
 
     try {
-      await fetch(`/api/orders/${activeOrder.id}/accept`, {
+      const response = await fetch(`/api/orders/${prepTimeOrder.id}/accept`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prepTime }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prepTime, id: prepTimeOrder.id }),
       });
 
-      await fetch(`/api/orders/${activeOrder.id}/print`, { method: "POST" });
-    } catch (error) {
-      console.error("Failed to accept order:", error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to accept order");
+      }
 
-      // Revert the UI on error
+      setPrepTimeOrder(null);
+      await fetchOrders();
+    } catch (error: any) {
+      console.error("Failed to accept order:", error);
       setActiveOrder(originalOrder);
       setOrders(originalOrders);
-      // Optionally, display an error message to the user
-      alert("Failed to accept order. Please try again.");
+      setActiveTab(originalTab);
+      alert(
+        `Failed to accept order: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
   const handleMarkReady = async (orderId: string) => {
-    if (!activeOrder) return;
+    if (!activeOrder || activeOrder.id !== orderId) return;
 
-    const originalOrder = { ...activeOrder }; // Store original order
-    const originalOrders = [...orders]; // Store original orders
+    const originalOrder = { ...activeOrder };
+    const originalOrders = [...orders];
 
-    // Optimistically update the UI
-    const updatedOrder = { ...activeOrder, status: "READY" };
-    setActiveOrder(updatedOrder);
+    setActiveOrder({ ...activeOrder, status: "READY" });
     setOrders((prevOrders) =>
-      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+      prevOrders.map((order) =>
+        order.id === orderId ? { ...order, status: "READY" } : order
+      )
     );
 
     try {
-      await fetch(`/api/orders/${orderId}/ready`, { method: "POST" });
-    } catch (error) {
+      const response = await fetch(`/api/orders/${orderId}/ready`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to mark ready");
+      }
+      await fetchOrders();
+    } catch (error: any) {
       console.error("Failed to mark order ready:", error);
-
-      // Revert the UI on error
       setActiveOrder(originalOrder);
       setOrders(originalOrders);
-      alert("Failed to mark order as ready. Please try again.");
+      alert(
+        `Failed to mark order as ready: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
   const handleHandOff = async (orderId: string) => {
-    if (!activeOrder) return;
+    if (!activeOrder || activeOrder.id !== orderId) return;
 
-    const originalOrder = { ...activeOrder }; // Store original order
-    const originalOrders = [...orders]; // Store original orders
+    const originalOrder = { ...activeOrder };
+    const originalOrders = [...orders];
+    const originalTab = activeTab;
 
-    // Optimistically update the UI
-    const updatedOrder = { ...activeOrder, status: "COMPLETED" };
-    setActiveOrder(updatedOrder);
+    setActiveOrder({ ...activeOrder, status: "COMPLETED" });
     setOrders((prevOrders) =>
-      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+      prevOrders.map((order) =>
+        order.id === orderId ? { ...order, status: "COMPLETED" } : order
+      )
     );
+    setActiveTab("completed");
 
     try {
-      await fetch(`/api/orders/${orderId}/complete`, { method: "POST" });
-    } catch (error) {
+      const response = await fetch(`/api/orders/${orderId}/complete`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to complete order");
+      }
+      await fetchOrders();
+    } catch (error: any) {
       console.error("Failed to complete order:", error);
-
-      // Revert the UI on error
       setActiveOrder(originalOrder);
       setOrders(originalOrders);
-      alert("Failed to complete order. Please try again.");
+      setActiveTab(originalTab);
+      alert(
+        `Failed to complete order: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
   const handlePrintReceipt = async (orderId: string) => {
     try {
-      await fetch(`/api/orders/${orderId}/print`, { method: "POST" });
-    } catch (error) {
+      const response = await fetch(`/api/orders/${orderId}/print`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Print failed");
+      }
+      // Optionally show success message
+    } catch (error: any) {
       console.error("Failed to print receipt:", error);
+      alert(
+        `Failed to print receipt: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
   const handleCancelOrder = async (orderId: string) => {
-    if (!confirm("Are you sure you want to cancel this order?")) return;
-    if (!activeOrder) return;
-
+    if (!activeOrder || activeOrder.id !== orderId) return;
+    if (
+      !confirm(
+        "Are you sure you want to cancel this order? This action might involve refunds and cannot always be undone."
+      )
+    )
+      return;
+  
     const originalOrder = { ...activeOrder };
     const originalOrders = [...orders];
-
-    // Optimistically update the UI
-    const updatedOrder = { ...activeOrder, status: "CANCELED" };
-    setActiveOrder(updatedOrder);
+    const originalTab = activeTab;
+  
+    setActiveOrder({ ...activeOrder, status: "CANCELED" });
     setOrders((prevOrders) =>
-      prevOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+      prevOrders.map((order) =>
+        order.id === orderId ? { ...order, status: "CANCELED" } : order
+      )
     );
-
+    setActiveTab("completed");
+  
     try {
-      await fetch(`/api/orders/${orderId}/cancel`, {
+      const response = await fetch(`/api/orders/${orderId}/cancel`, {
         method: "POST",
-        body: JSON.stringify({ orderId: orderId }),
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ id: orderId }), // Send orderId in the request body
       });
-    } catch (error) {
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to cancel order");
+      }
+      await fetchOrders();
+    } catch (error: any) {
       console.error("Failed to cancel order:", error);
-
-      // Revert the UI on error
       setActiveOrder(originalOrder);
       setOrders(originalOrders);
-      alert("Failed to cancel order. Please try again.");
+      setActiveTab(originalTab);
+      alert(
+        `Failed to cancel order: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
+  
 
   const handleCreateOrder = async (orderData: CreateOrderData) => {
     try {
@@ -302,43 +468,104 @@ export default function OrdersPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create order");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create order");
       }
 
-      const newOrder = await response.json();
-
-      // Add the new order to our state and refresh the list
-      await fetchOrders();
-
-      // Close the modal
       setShowCreateOrderModal(false);
-
-      // Switch to the "new" tab and select the new order
+      await fetchOrders();
       setActiveTab("new");
-
-      // Play notification sound for new order
       playAudio();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create order:", error);
-      alert("Failed to create order. Please try again.");
+      alert(
+        `Failed to create order: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   };
 
-  const getDeliveryStatusColor = (status: string) => {
+  const handleOpenEditModal = (order: Order) => {
+    if (!order || order.status !== "NEW") {
+      alert("Only new orders can be edited.");
+      return;
+    }
+    if (!order.paymentIntentId) {
+      alert("Cannot edit order: Payment Intent ID is missing.");
+      return;
+    }
+    setOrderToEdit({
+      orderId: order.id,
+      currentItems: order.items,
+      customerName: order.customerName,
+      paymentIntentId: order.paymentIntentId,
+    });
+    setShowEditOrderModal(true);
+  };
+
+  const handleUpdateOrder = async (updatedItems: OrderItem[], notes?: string) => {
+    if (!orderToEdit || !orderToEdit.paymentIntentId) {
+      alert("Cannot update order: Missing required information.");
+      return;
+    }
+  
+    try {
+      // Make sure we have the orderId
+      const orderId = orderToEdit.orderId;
+      console.log("Updating order with ID:", orderId);
+      
+      const response = await fetch(`/api/orders/${orderId}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          id: orderId, // Explicitly include the ID
+          items: updatedItems,
+          notes: notes
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update order");
+      }
+  
+      setShowEditOrderModal(false);
+      setOrderToEdit(null);
+      await fetchOrders();
+    } catch (error: any) {
+      console.error("Failed to update order:", error);
+      alert(
+        `Failed to update order: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  };
+  
+
+  const getDeliveryStatusColor = (status?: string | null) => {
+    if (!status) return "bg-gray-100 text-gray-800";
     const statusLower = status.toLowerCase();
-    if (statusLower.includes("assigned"))
+    if (statusLower.includes("pending")) return "bg-gray-100 text-gray-800";
+    if (statusLower.includes("assigning_courier"))
       return "bg-yellow-100 text-yellow-800";
-    if (statusLower.includes("arriving"))
+    if (statusLower.includes("waiting_for_pickup"))
+      return "bg-blue-100 text-blue-800";
+    if (statusLower.includes("picked_up"))
       return "bg-indigo-100 text-indigo-800";
-    if (statusLower.includes("picked_up")) return "bg-blue-100 text-blue-800";
-    if (statusLower.includes("dropp")) return "bg-green-100 text-green-800";
-    if (statusLower.includes("scheduled"))
-      return "bg-yellow-100 text-yellow-800";
+    if (statusLower.includes("en_route_to_dropoff"))
+      return "bg-purple-100 text-purple-800";
+    if (statusLower.includes("arrived_at_dropoff"))
+      return "bg-teal-100 text-teal-800";
+    if (statusLower.includes("delivered")) return "bg-green-100 text-green-800";
+    if (statusLower.includes("canceled")) return "bg-red-100 text-red-800";
     if (statusLower.includes("failed")) return "bg-red-100 text-red-800";
     return "bg-gray-100 text-gray-800";
   };
 
-  const formatDeliveryStatus = (status: string) => {
+  const formatDeliveryStatus = (status?: string | null) => {
+    if (!status) return "N/A";
     return status
       .toLowerCase()
       .replace(/_/g, " ")
@@ -347,37 +574,90 @@ export default function OrdersPage() {
       .join(" ");
   };
 
-  const formatDateTime = (dateString?: string) => {
-    if (!dateString) return "";
-    return new Date(dateString).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatDateTime = (dateString?: string | null | Date) => {
+    if (!dateString) return "N/A";
+    try {
+      return new Date(dateString).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return "Invalid Date";
+    }
   };
 
-  // Helper function to determine the correct action button based on order status
-  const getActionButton = () => {
-    if (!activeOrder) return null;
+  const getOrderStatusColor = (status: string) => {
+    switch (status) {
+      case "NEW":
+        return "bg-yellow-100 text-yellow-800";
+      case "ACCEPTED":
+        return "bg-blue-100 text-blue-800";
+      case "PREPARING":
+        return "bg-purple-100 text-purple-800";
+      case "READY":
+        return "bg-green-100 text-green-800";
+      case "COMPLETED":
+        return "bg-gray-100 text-gray-800";
+      case "CANCELED":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
-    if (activeOrder.status === "NEW") {
+  const getPaymentStatusVariant = (
+    status?: string | null
+  ): "default" | "secondary" | "destructive" | "outline" => {
+    if (!status) return "outline";
+    switch (status) {
+      case "succeeded":
+        return "default";
+      case "requires_capture":
+        return "secondary";
+      case "canceled":
+        return "destructive";
+      case "processing":
+        return "outline";
+      case "requires_payment_method":
+        return "destructive";
+      case "requires_confirmation":
+        return "secondary";
+      case "requires_action":
+        return "secondary";
+      case "failed":
+        return "destructive";
+      case "capture_failed":
+        return "destructive";
+      case "refunded":
+        return "outline";
+      default:
+        return "outline";
+    }
+  };
+
+  const getActionButton = (order: Order) => {
+    if (!order) return null;
+
+    if (order.status === "NEW") {
       return (
         <Button
-          className="text-white w-full"
-          onClick={() => setShowPrepTimeDialog(true)}
+          className="bg-green-600 hover:bg-green-700 text-white w-full"
+          onClick={() => handleAcceptOrderWithPrepTime(order)}
+          disabled={
+            order.paymentStatus === "failed" ||
+            order.paymentStatus === "canceled"
+          }
         >
-          Accept
+          Accept & Capture Payment
         </Button>
       );
     }
 
-    if (
-      activeOrder.status === "ACCEPTED" ||
-      activeOrder.status === "PREPARING"
-    ) {
+    if (order.status === "ACCEPTED" || order.status === "PREPARING") {
       return (
         <Button
           className="bg-blue-500 hover:bg-blue-600 text-white w-full"
-          onClick={() => handleMarkReady(activeOrder.id)}
+          onClick={() => handleMarkReady(order.id)}
         >
           <CheckCircle className="mr-1 h-4 w-4" />
           Mark as Ready
@@ -385,13 +665,14 @@ export default function OrdersPage() {
       );
     }
 
-    if (activeOrder.status === "READY") {
+    if (order.status === "READY") {
       return (
         <Button
           className="bg-blue-500 hover:bg-blue-600 text-white w-full"
-          onClick={() => handleHandOff(activeOrder.id)}
+          onClick={() => handleHandOff(order.id)}
         >
-          <span className="mr-2">✓</span> Hand off
+          <Truck className="mr-2 h-4 w-4" />
+          Mark Picked Up / Complete
         </Button>
       );
     }
@@ -400,21 +681,20 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="flex flex-col h-full mx-4">
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden">
       <audio
         ref={audioRef}
         src="https://upcdn.io/223k23J/raw/notification.mp3"
+        preload="auto"
       />
 
-      {/* Header */}
-      <div className="bg-white p-3 flex items-center border-b relative top-0">
+      <div className="bg-white p-3 flex items-center border-b shrink-0">
         <div className="flex-1">
           <div className="font-bold text-lg">
             Orders <ChevronDown className="inline h-4 w-4" />
           </div>
         </div>
-        <div className="flex space-x-2">
-          {/* Add Create Order button */}
+        <div className="flex items-center space-x-2">
           <Button
             variant="default"
             onClick={() => setShowCreateOrderModal(true)}
@@ -422,9 +702,8 @@ export default function OrdersPage() {
           >
             <Plus className="h-4 w-4 mr-1" /> New Order
           </Button>
-
           <div className="relative">
-            <Input placeholder="Search orders..." className="pl-8 w-[220px]" />
+            <Input placeholder="Search..." className="pl-8 w-[220px]" />
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
           </div>
           <Button variant="outline" size="icon">
@@ -441,45 +720,51 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Tabs Navigation */}
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
-        className="w-full bg-white mb-4"
+        className="w-full bg-white shrink-0"
       >
-        <TabsList className="grid grid-cols-3 pb-6 px-2">
-          {Object.entries(groupedOrders).map(([tab, tabOrders]) => (
-            <TabsTrigger key={tab} value={tab} className="relative">
-              {tab === "new"
-                ? "New"
-                : tab === "inProgress"
-                ? "In Progress"
-                : "Completed"}
-              <Badge className="ml-1 bg-gray-200 text-gray-800 hover:bg-gray-200">
-                {tabOrders.length}
+        <TabsList className="grid w-full grid-cols-3 border-b">
+          {(
+            Object.entries({
+              new: "New",
+              inProgress: "In Progress",
+              completed: "Completed",
+            }) as [string, string][]
+          ).map(([tabKey, tabName]) => (
+            <TabsTrigger
+              key={tabKey}
+              value={tabKey as "new" | "inProgress" | "completed"}
+              className="relative data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-600"
+            >
+              {tabName}
+              <Badge
+                className="ml-2 px-1.5 py-0.5 text-xs"
+                variant={activeTab === tabKey ? "default" : "secondary"}
+              >
+                {groupedOrders[tabKey as keyof typeof groupedOrders].length}
               </Badge>
-              {tab === "new" && isSoundPlaying && tabOrders.length > 0 && (
-                <Badge className="animate-pulse text-white">
-                  <Bell className="mr-2 h-4 w-4" />
-                  New Orders!
-                </Badge>
+              {tabKey === "new" && newOrderAlertVisible && (
+                <span className="absolute top-1 right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
               )}
             </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
 
-      {/* Main Content */}
-      <div className="flex flex-1 relative">
-        {/* Left Panel - Order List */}
-        <div className="w-1/3 border-r overflow-y-scroll h-screen bg-white">
+      <div className="flex flex-1 overflow-hidden">
+        <div className="w-1/3 border-r overflow-y-auto bg-white">
           {groupedOrders[activeTab as keyof typeof groupedOrders].length ===
           0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <Package className="h-12 w-12 mb-4" />
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4 text-center">
+              <Package className="h-12 w-12 mb-4 text-gray-400" />
               <p>
                 No {activeTab === "inProgress" ? "in progress" : activeTab}{" "}
-                orders
+                orders found.
               </p>
             </div>
           ) : (
@@ -495,295 +780,332 @@ export default function OrdersPage() {
                     }`}
                     onClick={() => setActiveOrder(order)}
                   >
-                    <div className="flex items-start gap-2">
-                      <div
-                        className={`h-8 w-8 rounded-md flex items-center justify-center text-white ${
-                          order.status === "NEW"
-                            ? "bg-yellow-500"
-                            : ["ACCEPTED", "PREPARING"].includes(order.status)
-                            ? "bg-blue-500"
-                            : order.status === "READY"
-                            ? "bg-green-500"
-                            : order.status === "CANCELED"
-                            ? "bg-red-500"
-                            : "bg-gray-500"
-                        }`}
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-sm truncate pr-2">
+                        {order.customerName}
+                      </span>
+                      <span className="text-sm font-medium">
+                        ${order.total?.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+                      <span>#{order.orderNumber}</span>
+                      <span>
+                        {order.customerAddress ? "Delivery" : "Pickup"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${getOrderStatusColor(
+                          order.status
+                        )}`}
                       >
-                        {order.customerName.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center text-sm font-bold gap-2">
-                           {order.customerName}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                        #{order.orderNumber}
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          {order.customerAddress ? "Delivery" : "Pickup"} • $
-                          {order.total?.toFixed(2)}
-                        </div>
-                        {order.deliveryStatus && (
-                          <Badge
-                            className={`mt-1 ${getDeliveryStatusColor(
-                              order.doordashStatus ? order.doordashStatus : "",
-                            )}`}
-                          >
-                            {order.doordashStatus}
-                          </Badge>
-                        )}
-                        {order.status === "CANCELED" && (
-                          <Badge className="mt-1 bg-red-100 text-red-800">
-                            CANCELED
-                          </Badge>
-                        )}
-                      </div>
+                        {order.status}
+                      </Badge>
+                      {order.customerAddress && order.uberStatus && (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getDeliveryStatusColor(
+                            order.uberStatus
+                          )}`}
+                        >
+                          {formatDeliveryStatus(order.uberStatus)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                ),
+                )
               )}
             </div>
           )}
         </div>
 
-        {/* Right Panel - Order Details */}
-        <div className="flex-1 bg-white h-full sticky right-0 top-28">
+        <div className="flex-1 bg-gray-50 overflow-y-auto">
           {activeOrder ? (
-            <div className="flex flex-col h-full pb-16 ">
-              {/* Order Header */}
-              <div className="px-4 py-3 border-b">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-10 w-10 rounded-md flex items-center justify-center text-white ${
-                      activeOrder.status === "NEW"
-                        ? "bg-yellow-500"
-                        : ["ACCEPTED", "PREPARING"].includes(activeOrder.status)
-                        ? "bg-blue-500"
-                        : activeOrder.status === "READY"
-                        ? "bg-green-500"
-                        : activeOrder.status === "CANCELED"
-                        ? "bg-red-500"
-                        : "bg-gray-500"
-                    }`}
-                  >
-                    {activeOrder.customerName.charAt(0)}
-                  </div>
+            <div className="flex flex-col h-full">
+              <div className="p-4 border-b bg-white">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold">
-                      {activeOrder.customerName} 
-                      </h2>
-                      <Badge
-                        className={`
-                        ${
-                          activeOrder.status === "NEW"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : activeOrder.status === "ACCEPTED"
-                            ? "bg-blue-100 text-blue-800"
-                            : activeOrder.status === "PREPARING"
-                            ? "bg-purple-100 text-purple-800"
-                            : activeOrder.status === "READY"
-                            ? "bg-green-100 text-green-800"
-                            : activeOrder.status === "CANCELED"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-gray-100 text-gray-800"
-                        }
-                      `}
-                      >
-                        {activeOrder.status}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                    #{activeOrder.orderNumber}
-                    </div>
+                    <h2 className="text-lg font-semibold">
+                      {activeOrder.customerName}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      #{activeOrder.orderNumber}
+                    </p>
+                  </div>
+                  <Badge className={getOrderStatusColor(activeOrder.status)}>
+                    {activeOrder.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="bg-white p-3 rounded-md border">
+                  <h3 className="text-sm font-medium mb-2 text-gray-700">
+                    Customer Information
+                  </h3>
+                  <div className="space-y-1 text-sm">
+                    {activeOrder.customerPhone && (
+                      <div className="flex items-center">
+                        <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                        <span>{activeOrder.customerPhone}</span>
+                      </div>
+                    )}
+                    {activeOrder.customerEmail && (
+                      <div className="flex items-center">
+                        <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                        <span>{activeOrder.customerEmail}</span>
+                      </div>
+                    )}
+                    {activeOrder.customerAddress && (
+                      <div className="flex items-start">
+                        <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5 shrink-0" />
+                        <span>{activeOrder.customerAddress}</span>
+                      </div>
+                    )}
+                    {activeOrder.notes && (
+                      <div className="flex items-start pt-1 text-yellow-700">
+                        <AlertCircle className="h-4 w-4 mr-2 text-yellow-500 mt-0.5 shrink-0" />
+                        <span className="italic">{activeOrder.notes}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Customer Contact Info */}
-              <div className="px-4 py-3 bg-gray-50">
-                <h3 className="text-sm font-medium mb-2">
-                  Customer Information
-                </h3>
-                <div className="grid grid-cols-1 gap-2 text-sm">
-                  {activeOrder.customerPhone && (
-                    <div className="flex items-center">
-                      <Phone className="h-4 w-4 mr-2 text-gray-500" />
-                      <span>{activeOrder.customerPhone}</span>
-                    </div>
-                  )}
-                  {activeOrder.customerEmail && (
-                    <div className="flex items-center">
-                      <Mail className="h-4 w-4 mr-2 text-gray-500" />
-                      <span>{activeOrder.customerEmail}</span>
-                    </div>
-                  )}
-                  {activeOrder.customerAddress && (
-                    <div className="flex items-start mt-1">
-                      <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-0.5" />
-                      <span>{activeOrder.customerAddress}</span>
-                    </div>
-                  )}
-                  {activeOrder.notes && (
-                    <div className="flex items-start mt-1">
-                      <AlertCircle className="h-4 w-4 mr-2 text-gray-500 mt-0.5" />
-                      <span className="text-gray-700">{activeOrder.notes}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Delivery Info */}
-              {activeOrder.deliveryStatus && (
-                <div className="px-4 py-3 bg-gray-50">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="text-gray-500">Delivery Status</div>
-                      <Badge
-                        className={getDeliveryStatusColor(
-                          activeOrder.doordashStatus || "",
-                        )}
-                      >
-                        {activeOrder?.doordashStatus}
-                      </Badge>
-                    </div>
-                    {activeOrder.tracking_url && (
+                {activeOrder.customerAddress && (
+                  <div className="bg-white p-3 rounded-md border">
+                    <h3 className="text-sm font-medium mb-2 text-gray-700">
+                      Delivery Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                       <div>
-                        <a
-                          href={activeOrder.tracking_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center text-blue-600 hover:underline"
+                        <div className="text-gray-500">Status</div>
+                        <Badge
+                          className={`mt-0.5 ${getDeliveryStatusColor(
+                            activeOrder.uberStatus
+                          )}`}
                         >
-                          <ExternalLink className="mr-1 h-4 w-4" />
-                          Track Delivery
-                        </a>
+                          {formatDeliveryStatus(activeOrder.uberStatus)}
+                        </Badge>
                       </div>
-                    )}
-                    {activeOrder.pickup_time_estimated && (
-                      <div>
-                        <div className="text-gray-500">Estimated Pickup</div>
-                        <div className="flex items-center">
-                          <Clock className="mr-1 h-4 w-4" />
-                          {formatDateTime(activeOrder.pickup_time_estimated)}
+                      {activeOrder.uberTrackingUrl && (
+                        <div>
+                          <div className="text-gray-500">Tracking</div>
+                          <a
+                            href={activeOrder.uberTrackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-blue-600 hover:underline"
+                          >
+                            <ExternalLink className="mr-1 h-3 w-3" />
+                            View Live Tracking
+                          </a>
                         </div>
-                      </div>
-                    )}
-                    {activeOrder.dropoff_time_estimated && (
-                      <div>
-                        <div className="text-gray-500">Estimated Delivery</div>
-                        <div className="flex items-center">
-                          <MapPin className="mr-1 h-4 w-4" />
-                          {formatDateTime(activeOrder.dropoff_time_estimated)}
-                        </div>
-                      </div>
-                    )}
-                    {activeOrder.dasherName && (
-                      <div>
-                        <div className="text-gray-500">Courier</div>
-                        <div>{activeOrder.dasherName}</div>
-                        {activeOrder.dasherPhone && (
-                          <div className="text-gray-600">
-                            {activeOrder.dasherPhone}
+                      )}
+                      {activeOrder.estimatedPickupTime && (
+                        <div>
+                          <div className="text-gray-500">Est. Pickup</div>
+                          <div className="flex items-center">
+                            <Clock className="mr-1 h-3 w-3" />
+                            {formatDateTime(activeOrder.estimatedPickupTime)}
                           </div>
-                        )}
+                        </div>
+                      )}
+                      {activeOrder.estimatedDropoffTime && (
+                        <div>
+                          <div className="text-gray-500">Est. Delivery</div>
+                          <div className="flex items-center">
+                            <MapPin className="mr-1 h-3 w-3" />
+                            {formatDateTime(activeOrder.estimatedDropoffTime)}
+                          </div>
+                        </div>
+                      )}
+                      {activeOrder.dasherName && (
+                        <div className="col-span-2">
+                          <div className="text-gray-500">Courier</div>
+                          <div className="flex items-center gap-2">
+                            <span>{activeOrder.dasherName}</span>
+                            {activeOrder.dasherPhone && (
+                              <span className="text-gray-600 text-xs">
+                                ({activeOrder.dasherPhone})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-white p-3 rounded-md border">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-medium text-gray-700">
+                      Order Items
+                    </h3>
+                    {activeOrder.status === "NEW" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEditModal(activeOrder)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" /> Edit Items
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {activeOrder.items.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start text-sm border-b last:border-b-0 py-1"
+                      >
+                        <div className="w-8 text-center font-medium">
+                          {item.quantity}x
+                        </div>
+                        <div className="flex-1 px-2">{item.name}</div>
+                        <div
+                          className="w-16 text-
+
+right"
+                        >
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-md border">
+                  <h3 className="text-sm font-medium mb-2 text-gray-700">
+                    Transaction Details
+                  </h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span>${activeOrder.subtotal?.toFixed(2)}</span>
+                    </div>
+                    {activeOrder.tax > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Tax</span>
+                        <span>${activeOrder.tax.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {activeOrder.tip !== undefined &&
+                      activeOrder.tip !== null &&
+                      activeOrder.tip > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Tip</span>
+                          <span>${activeOrder.tip.toFixed(2)}</span>
+                        </div>
+                      )}
+                    {activeOrder.deliveryFee !== undefined &&
+                      activeOrder.deliveryFee !== null &&
+                      activeOrder.deliveryFee > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Delivery Fee</span>
+                          <span>${activeOrder.deliveryFee.toFixed(2)}</span>
+                        </div>
+                      )}
+                    <div className="flex justify-between font-semibold pt-1 border-t mt-1">
+                      <span>Total</span>
+                      <span>${activeOrder.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-md border">
+                  <h3 className="text-sm font-medium mb-2 text-gray-700">
+                    Payment Details
+                  </h3>
+                  <div className="space-y-1 text-sm">
+                    {activeOrder.paymentIntentId && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Payment Intent</span>
+                        <span className="font-mono text-xs bg-gray-100 px-1 rounded">
+                          {activeOrder.paymentIntentId}
+                        </span>
+                      </div>
+                    )}
+                    {activeOrder.paymentStatus && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Status</span>
+                        <Badge
+                          variant={getPaymentStatusVariant(
+                            activeOrder.paymentStatus
+                          )}
+                          className="capitalize text-xs"
+                        >
+                          {activeOrder.paymentStatus.replace(/_/g, " ")}
+                        </Badge>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
-              {/* Order Items */}
-              <div className="px-4 py-2">
-                <div className="text-sm font-medium mb-2">Order Items</div>
-                {activeOrder.items.map((item, idx) => (
-                  <div key={idx} className="py-2 flex items-start">
-                    <div className="w-8 text-center">{item.quantity}</div>
-                    <div className="flex-1">{item.name}</div>
-                    <div>
-                      ${((item.price || 0) * (item.quantity || 0))?.toFixed(2)}
-                    </div>
-                  </div>
-                ))}
               </div>
-              {/* Transaction Details */}
-              <div className="px-4 py-2">
-                <div className="text-gray-500 text-sm my-2">
-                  Transaction details
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>${activeOrder.subtotal?.toFixed(2)}</span>
-                  </div>
-                  {activeOrder.tax > 0 && (
-                    <div className="flex justify-between">
-                      <span>Tax</span>
-                      <span>${activeOrder.tax?.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {activeOrder.deliveryFee !== undefined && (
-                    <div className="flex justify-between">
-                      <span>Delivery Fee</span>
-                      <span>${activeOrder.deliveryFee?.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-medium">
-                    <span>Total</span>
-                    <span>${activeOrder.total?.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-              {/* Sticky Actions bar */}
-              <div className="static top-0 bottom-0 right-0 p-3 border-t flex items-center gap-2 bg-transparent shadow-md">
+
+              <div className="p-3 border-t flex items-center gap-2 bg-white mt-auto shrink-0">
                 <Button
                   variant="ghost"
                   size="icon"
+                  title="Print Receipt"
                   onClick={() => handlePrintReceipt(activeOrder.id)}
                 >
                   <Printer className="h-5 w-5" />
                 </Button>
 
-                {/* Only show cancel button if order is not completed or canceled */}
                 {!["COMPLETED", "CANCELED"].includes(activeOrder.status) && (
                   <Button
                     variant="outline"
                     onClick={() => handleCancelOrder(activeOrder.id)}
-                    className="text-red-600 border-red-200"
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                   >
                     Cancel Order
                   </Button>
                 )}
 
-                <div className="flex-1">{getActionButton()}</div>
+                <div className="flex-1"></div>
+
+                <div className="min-w-[200px]">
+                  {getActionButton(activeOrder)}
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <Package className="h-12 w-12 mb-4" />
-              <p>Select an order to view details</p>
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4">
+              <Package className="h-16 w-16 mb-4 text-gray-400" />
+              <p>Select an order from the list to view details</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modals */}
-      {activeOrder && (
+      {prepTimeOrder && (
         <PrepTimeSetter
-          order={activeOrder as any}
-          open={showPrepTimeDialog}
-          onClose={() => setShowPrepTimeDialog(false)}
-          onConfirm={handleAcceptOrder}
+          order={prepTimeOrder}
+          onClose={handleClosePrepTime}
+          onConfirm={handleConfirmPrepTime}
         />
       )}
 
-  
-
-      {/* Create Order Modal */}
       <CreateOrderModal
         open={showCreateOrderModal}
         onClose={() => setShowCreateOrderModal(false)}
         onCreateOrder={handleCreateOrder}
-        // Replace with your actual store ID or get from context/props
       />
+
+      {orderToEdit && (
+        <EditOrderModal
+          open={showEditOrderModal}
+          onClose={() => {
+            setShowEditOrderModal(false);
+            setOrderToEdit(null);
+          }}
+          orderData={orderToEdit}
+          onUpdateOrder={handleUpdateOrder}
+        />
+      )}
     </div>
   );
-}
+};
+
+export default OrdersPage;

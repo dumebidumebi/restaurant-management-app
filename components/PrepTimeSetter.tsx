@@ -13,21 +13,19 @@ import { Order } from "@/types/index";
 
 interface PrepTimeSetterProps {
   order: Order;
-  open: boolean;
   onClose: () => void;
   onConfirm: (prepTime: number) => void;
 }
 
 const PrepTimeSetter: FC<PrepTimeSetterProps> = ({
   order,
-  open,
   onClose,
   onConfirm,
 }) => {
   const [prepTime, setPrepTime] = useState<number>(30); // Default 30 mins
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={!!order} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Set Preparation Time</DialogTitle>

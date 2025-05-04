@@ -3,8 +3,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  // output   = "./generated/client"
-
 }
 
 datasource db {
@@ -14,7 +12,7 @@ datasource db {
 
 model User {
   id             String          @id @unique
-  data           Json
+  data           Json? // Made Json optional as it might not always be present
   store          Store?          @relation("UserStore")
   createdAt      DateTime        @default(now())
   items          Item[]
@@ -31,7 +29,7 @@ model Store {
   owner              User       @relation("UserStore", fields: [ownerId], references: [id])
   locations          Location[]
   menus              Menu[]
-  settings           Json // Contains settings divided into categories
+  settings           Json? // Made Json optional
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
   site_subdomain     String?    @unique
@@ -48,7 +46,7 @@ model Location {
   storeId   String
   store     Store    @relation(fields: [storeId], references: [id])
   menus     Menu[]   @relation("MenuLocations")
-  openHours Json // JSON object for open hours (e.g., Monday-Sunday)
+  openHours Json? // Made Json optional
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -59,61 +57,65 @@ model Menu {
   storeId      String
   store        Store      @relation(fields: [storeId], references: [id])
   locations    Location[] @relation("MenuLocations")
-  isAvailable  Boolean    @default(true) // Overall availability
-  availability Json // JSON for availability settings (e.g., Sunday-Saturday)
+  isAvailable  Boolean    @default(true)
+  availability Json? // Made Json optional
   categories   Category[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  userId       String // Now required
-  user         User       @relation(fields: [userId], references: [id]) // Now required
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
 }
 
 model Category {
   id           String   @id @default(uuid())
   name         String
-  description  String
+  description  String? // Made description optional
   menuId       String?
   menu         Menu?    @relation(fields: [menuId], references: [id])
   items        Item[]   @relation("CategoryItems")
-  isAvailable  Boolean? @default(true) // Simple availability flag
-  availability Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  isAvailable  Boolean? @default(true)
+  availability Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  userId       String // Now required
-  user         User     @relation(fields: [userId], references: [id]) // Now required
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model Item {
   id              String          @id @default(uuid())
   name            String
-  imageUrl        String
-  displayName     String
+  imageUrl        String? // Made imageUrl optional
+  displayName     String? // Made displayName optional
   description     String?
   price           Float
   options         String?
   allergens       String?
   categoryId      String?
+  // Relation field for the many-to-many relationship
   categories      Category[]      @relation("CategoryItems")
-  isAvailable     Boolean?        @default(true) // Simple availability flag
-  availability    Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  isAvailable     Boolean?        @default(true)
+  availability    Json?
+  // Relation field for the many-to-many relationship
   modifierGroups  ModifierGroup[] @relation("ItemModifierGroups")
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   userId          String
   user            User            @relation(fields: [userId], references: [id])
-  stripeProductId String?
-  stripePriceId   String?
+  stripeProductId String?         @unique // Ensure Stripe IDs are unique if used
+  stripePriceId   String?         @unique // Ensure Stripe IDs are unique if used
 }
 
 model ModifierGroup {
   id           String     @id @default(uuid())
   name         String
-  minSelect    Int
-  maxSelect    Int
+  minSelect    Int        @default(0) // Default minSelect to 0
+  maxSelect    Int        @default(1) // Default maxSelect to 1
+  // Relation field for the many-to-many relationship
   items        Item[]     @relation("ItemModifierGroups")
+  // Relation field for the one-to-many relationship
   modifiers    Modifier[] @relation("ModifierGroupModifiers")
-  isAvailable  Boolean?   @default(true) // Simple availability flag
-  availability Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  isAvailable  Boolean?   @default(true)
+  availability Json?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   userId       String
@@ -123,23 +125,25 @@ model ModifierGroup {
 model Modifier {
   id              String          @id @default(uuid())
   name            String
-  price           Float
+  price           Float           @default(0) // Default price to 0
   imageUrl        String?
   displayName     String?
   description     String?
-  minSelect       Int?
-  maxSelect       Int?
+  minSelect       Int? // These might not be needed on Modifier itself if controlled by Group
+  maxSelect       Int? // These might not be needed on Modifier itself if controlled by Group
+  // Relation field for the many-to-many relationship
   modifierGroups  ModifierGroup[] @relation("ModifierGroupModifiers")
-  isAvailable     Boolean?        @default(true) // Simple availability flag
-  availability    Json? // JSON for availability settings (e.g., Sunday-Saturday)
+  isAvailable     Boolean?        @default(true)
+  availability    Json?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   userId          String
   user            User            @relation(fields: [userId], references: [id])
-  stripeProductId String?
-  stripePriceId   String?
+  stripeProductId String?         @unique // Ensure Stripe IDs are unique if used
+  stripePriceId   String?         @unique // Ensure Stripe IDs are unique if used
 }
 
+// --- Enums ---
 enum ItemOptions {
   ALCOHOLIC
   GLUTEN_FREE
@@ -173,72 +177,77 @@ enum DeliveryStatus {
   PICKED_UP
   DELIVERED
   FAILED
+  CANCELED // Added canceled status for delivery
 }
 
+// --- Order Model ---
 model Order {
-  stripeCheckoutSessionId String
-  id                      String      @id @default(uuid())
-  orderNumber             String      @unique
-  status                  OrderStatus @default(NEW)
-  items                   OrderItem[]
-  subtotal                Float
-  tax                     Float
-  deliveryFee             Float?
-  tip                     Float?
-  total                   Float
-  customerName            String
-  customerPhone           String?
-  customerEmail           String?
-  customerAddress         String?
-  notes                   String?
+  // Removed stripeCheckoutSessionId as primary flow uses Payment Intent
+  // stripeCheckoutSessionId String? // Keep if needed for manual orders or legacy data
+
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  status          OrderStatus @default(NEW)
+  items           OrderItem[]
+  subtotal        Float
+  tax             Float
+  deliveryFee     Float?
+  tip             Float?      // Added Tip field
+  total           Float
+  customerName    String
+  customerPhone   String?
+  customerEmail   String?
+  customerAddress String?
+  notes           String?
 
   // Preparation & delivery fields
-  prepTime        Int? // Preparation time in minutes
-  deliveryQuoteId String? // Delivery quote ID
-  deliveryId      String?  // Delivery ID from Uber Direct
+  prepTime        Int?
+  deliveryQuoteId String?
+  deliveryId      String?
 
   // Delivery status tracking
   deliveryStatus       DeliveryStatus? @default(PENDING)
-  uberStatus           String? // Raw status from Uber Direct
-  uberTrackingUrl      String? // Tracking URL for the customer
-  
-  // Courier information
-  dasherName           String? // Courier name
-  dasherPhone          String? // Courier phone number
-  courierLocationLat   Float? // Current courier latitude
-  courierLocationLng   Float? // Current courier longitude
-  courierVehicleType   String? // Courier vehicle type (car, bicycle, etc.)
-  courierVehicleMake   String? // Vehicle make (Toyota, etc.)
-  courierVehicleModel  String? // Vehicle model (Prius, etc.)
-  courierVehicleColor  String? // Vehicle color
-  courierRating        String? // Courier rating
-  
-  // Delivery timing
-  estimatedPickupTime  DateTime? // Estimated pickup time
-  estimatedDropoffTime DateTime? // Estimated delivery time
-  
-  // Refund information
-  refundAmount         Float? // Total refund amount
-  refundReason         String? // Reason for refund
-  refundPartyAtFault   String? // Who is at fault for the refund
-  refundItems          String? // JSON string of refunded items
-  refundFees           String? // JSON string of refund fees
-  refundedAt           DateTime? // When the refund was processed
+  uberStatus           String?
+  uberTrackingUrl      String?
 
-  // Payment tracking
-  paymentIntentId String? // Stripe payment intent ID
-  paymentStatus   String? // Stripe payment status
+  // Courier information
+  dasherName           String?
+  dasherPhone          String?
+  courierLocationLat   Float?
+  courierLocationLng   Float?
+  courierVehicleType   String?
+  courierVehicleMake   String?
+  courierVehicleModel  String?
+  courierVehicleColor  String?
+  courierRating        String?
+
+  // Delivery timing
+  estimatedPickupTime  DateTime?
+  estimatedDropoffTime DateTime?
+
+  // Refund information
+  refundId             String? // Store Stripe Refund ID if applicable
+  refundAmount         Float?
+  refundReason         String?
+  refundPartyAtFault   String?
+  refundItems          Json? // Store refunded items as JSON
+  refundFees           Json? // Store refunded fees as JSON
+  refundedAt           DateTime?
+
+  // Payment tracking (NEW/UPDATED)
+  paymentIntentId String?     @unique // Payment Intent ID is crucial and should be unique
+  paymentStatus   String?     // e.g., 'requires_capture', 'succeeded', 'canceled', 'failed'
 
   // Relationships
   storeId String
   store   Store  @relation(fields: [storeId], references: [id])
 
   // Timestamps
-  createdAt   DateTime? @default(now())
-  updatedAt   DateTime? @updatedAt
-  lastUpdated DateTime? // Last webhook update timestamp
+  createdAt   DateTime  @default(now()) // Use non-optional DateTime
+  updatedAt   DateTime  @updatedAt // Use non-optional DateTime
+  lastUpdated DateTime? // Keep for webhook updates if needed
 
-  // Legacy fields (keeping for backward compatibility)
+  // Legacy fields (keep if needed, otherwise remove)
   doordashTrackingUrl  String?
   doordashFee          Float?
   doordashStatus       String?
@@ -252,7 +261,7 @@ model OrderItem {
   name      String
   quantity  Int
   price     Float
-  modifiers Json? // Array of selected modifiers
+  modifiers Json? // Store selected modifiers as JSON object/array
   notes     String?
   itemId    String? // Reference to original item if available
 
@@ -265,6 +274,7 @@ model OrderItem {
   updatedAt DateTime @updatedAt
 }
 
+// --- Cart Models (Keep as is if used for cart persistence) ---
 model Cart {
   id              String     @id @default(uuid())
   items           CartItem[]
@@ -284,9 +294,9 @@ model CartItem {
   name      String
   quantity  Int
   price     Float
-  modifiers Json? // Array of selected modifiers
+  modifiers Json? // Store selected modifiers as JSON object/array
   notes     String?
-  itemId    String? // Reference to original item 
+  itemId    String? // Reference to original item
 
   // Relationships
   cartId String
@@ -296,3 +306,4 @@ model CartItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+

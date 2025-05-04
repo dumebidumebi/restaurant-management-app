@@ -3,7 +3,13 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { readSiteDomain } from "./lib/actions/vercel/read-site-domain";
 
-const isProtectedRoute = createRouteMatcher(["/"]);
+const isProtectedRoute = createRouteMatcher([
+  "/auth(.*)", // Assuming /auth contains protected pages, adjust if needed
+  "/settings(.*)",
+  "/store(.*)",
+  // Add any other specific dashboard paths here if they exist outside /settings or /store
+]);
+
 
 // // Define the routes that require authentication
 // const isProtectedRoute = createRouteMatcher(["/cms(.*)"]);

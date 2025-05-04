@@ -43,6 +43,7 @@ export default function Layout({
   return (
     <>
       {/* <Header/> */}
+      <ClerkProvider>
       <html lang="en">
         <head>
           <Script src="http://localhost:3000"></Script>
@@ -52,6 +53,7 @@ export default function Layout({
           <div className="mx-0">{children}</div>
         </body>
       </html>
+      </ClerkProvider>
     </>
   );
 }
